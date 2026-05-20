@@ -162,6 +162,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
     if not argv:
         print(render_welcome())
         return 0

@@ -14,6 +14,15 @@ def test_cli_no_args_shows_welcome(capsys):
     assert "nsc explore topics" in out
 
 
+def test_cli_uses_sys_argv_when_no_argv_is_passed(monkeypatch, capsys):
+    monkeypatch.setattr(cli.sys, "argv", ["nsc", "lesson", "list"])
+    result = run()
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "attacker-mindset" in out
+    assert "zero-day" in out
+
+
 def test_cli_lists_lessons(capsys):
     result = run(["lesson", "list"])
     out = capsys.readouterr().out
