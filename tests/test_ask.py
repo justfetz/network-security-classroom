@@ -26,6 +26,14 @@ def test_local_ask_provider_answers_zero_day_question():
     assert "detection" in response.related_topics
 
 
+def test_local_ask_provider_answers_attacker_mindset_question():
+    provider = get_ask_provider(AskConfig(provider="local"))
+    response = provider.answer("what are attackers looking for?")
+    assert "attacker mindset" in response.answer.casefold()
+    assert "zero-day" in response.related_topics
+    assert 'nsc ask "what are attackers usually looking for first?"' in response.suggested_commands
+
+
 def test_remote_provider_requires_key():
     try:
         get_ask_provider(AskConfig(provider="openai"))

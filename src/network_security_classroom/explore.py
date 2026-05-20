@@ -16,6 +16,14 @@ class ExploreTopic:
 
 
 TOPICS = {
+    "attacker-mindset": ExploreTopic(
+        slug="attacker-mindset",
+        title="Attacker Mindset for Defenders",
+        summary="Study what attackers tend to notice first so you can prioritize defense, visibility, and safer defaults.",
+        why_it_matters="Security gets more practical when you can see which exposures, weak boundaries, and quiet mistakes attract attention first.",
+        related=("metadata", "zero-day", "detection"),
+        suggested_commands=("nsc lesson show attacker-mindset", 'nsc ask "what are attackers usually looking for first?"'),
+    ),
     "hosts": ExploreTopic(
         slug="hosts",
         title="Hosts and Reachability",
@@ -37,7 +45,7 @@ TOPICS = {
         title="Metadata and Visibility",
         summary="Learn how observers can infer intent even when content is encrypted.",
         why_it_matters="A lot of real-world security and privacy risk comes from what traffic reveals around the content.",
-        related=("dns", "tls", "zero-day"),
+        related=("dns", "tls", "attacker-mindset"),
         suggested_commands=("nsc lab dns --demo-domain example.com", "nsc lesson show tls-metadata"),
     ),
     "dns": ExploreTopic(
@@ -61,7 +69,7 @@ TOPICS = {
         title="TLS and Encryption",
         summary="Understand what encryption protects and what it does not protect.",
         why_it_matters="People often assume encryption hides everything. In practice, metadata still matters a lot.",
-        related=("metadata", "dns", "zero-day"),
+        related=("metadata", "dns", "attacker-mindset"),
         suggested_commands=("nsc lesson show tls-metadata", "nsc explore topic metadata"),
     ),
     "zero-day": ExploreTopic(
@@ -69,7 +77,7 @@ TOPICS = {
         title="Zero-Days and Exposure",
         summary="Break down what zero-days mean without treating them like magic.",
         why_it_matters="Modern security is often about reducing blast radius and understanding chains, not just patching one bug.",
-        related=("tls", "metadata", "detection"),
+        related=("tls", "attacker-mindset", "detection"),
         suggested_commands=("nsc lesson show zero-day",),
     ),
     "services": ExploreTopic(
@@ -85,7 +93,7 @@ TOPICS = {
         title="Detection and Response",
         summary="Start thinking like a defender who notices patterns, logs, and strange behavior.",
         why_it_matters="Security is not just about preventing bad things. It is also about seeing them quickly and responding well.",
-        related=("zero-day", "metadata", "dns"),
+        related=("zero-day", "metadata", "attacker-mindset"),
         suggested_commands=("nsc explore next zero-day",),
     ),
 }

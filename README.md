@@ -68,6 +68,7 @@ The next slice adds:
 
 The first shipped lessons are:
 
+- `attacker-mindset`
 - `host`
 - `handshake`
 - `tls-metadata`
@@ -80,11 +81,13 @@ After install, this is the simplest “feel the project” path:
 ```powershell
 nsc
 nsc explore topics
+nsc explore topic attacker-mindset
+nsc lesson show attacker-mindset
 nsc explore topic metadata
 nsc lesson show tls-metadata
 nsc lab tcp --target 192.168.1.1 --port 443
 nsc lab dns --demo-domain example.com
-nsc ask "why does metadata matter?"
+nsc ask "what are attackers usually looking for first?"
 ```
 
 What each step does:
@@ -93,6 +96,10 @@ What each step does:
   - opens the welcome screen
 - `nsc explore topics`
   - shows the topic map
+- `nsc explore topic attacker-mindset`
+  - shows what attackers tend to notice first and why defenders care about that lens
+- `nsc lesson show attacker-mindset`
+  - gives the deeper defensive explanation of attacker mindset
 - `nsc explore topic metadata`
   - explains why metadata matters and what to try next
 - `nsc lesson show tls-metadata`
@@ -115,9 +122,11 @@ nsc ask "why does metadata matter?"
 nsc ask --status
 nsc ask --setup
 nsc explore topics
+nsc explore topic attacker-mindset
 nsc explore topic metadata
 nsc explore next zero-day
 nsc lesson list
+nsc lesson show attacker-mindset
 nsc lesson show tls-metadata
 nsc lesson show host
 nsc notes export --lesson zero-day
@@ -136,7 +145,9 @@ $env:PYTHONPATH='src'
 python -m network_security_classroom.cli
 python -m network_security_classroom.cli ask "what is a zero-day?"
 python -m network_security_classroom.cli explore topics
+python -m network_security_classroom.cli explore topic attacker-mindset
 python -m network_security_classroom.cli lesson list
+python -m network_security_classroom.cli lesson show attacker-mindset
 python -m network_security_classroom.cli lesson show tls-metadata
 python -m network_security_classroom.cli lesson show handshake
 python -m network_security_classroom.cli lab arp --range 192.168.1.0/24
@@ -200,6 +211,7 @@ pytest
 
 Current lessons:
 
+- `attacker-mindset`
 - `host`
 - `handshake`
 - `tls-metadata`

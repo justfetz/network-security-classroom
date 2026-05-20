@@ -156,6 +156,19 @@ SYSTEM_INSTRUCTIONS = (
 
 
 def _resolve_local_targets(prompt: str) -> tuple[str | None, str | None]:
+    if any(
+        word in prompt
+        for word in (
+            "attacker mindset",
+            "attacker-mindset",
+            "what attackers look for",
+            "what are attackers looking for",
+            "exposure",
+            "exploit chain",
+            "misconfiguration",
+        )
+    ):
+        return "attacker-mindset", "attacker-mindset"
     if any(word in prompt for word in ("zero-day", "zero day", "n-day", "patch")):
         return "zero-day", "zero-day"
     if any(word in prompt for word in ("metadata", "privacy", "visible", "dns")):
@@ -173,11 +186,11 @@ def _resolve_local_targets(prompt: str) -> tuple[str | None, str | None]:
 
 def _build_remote_prompt(question: str, recent_context: RecentContext | None = None) -> str:
     context_parts = []
-    for slug in ("host", "handshake", "tls-metadata", "zero-day"):
+    for slug in ("attacker-mindset", "host", "handshake", "tls-metadata", "zero-day"):
         lesson = get_lesson(slug)
         if lesson:
             context_parts.append(f"{lesson.title}: {lesson.summary}")
-    for slug in ("metadata", "tls", "detection"):
+    for slug in ("attacker-mindset", "metadata", "tls", "detection"):
         topic = get_topic(slug)
         if topic:
             context_parts.append(render_topic_summary(topic))

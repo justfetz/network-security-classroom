@@ -14,6 +14,23 @@ class Lesson:
 
 
 LESSONS = {
+    "attacker-mindset": Lesson(
+        slug="attacker-mindset",
+        title="Attacker Mindset for Defenders",
+        summary="Learn what attackers tend to notice first, and why defenders study that view without becoming attackers.",
+        body=(
+            "Defenders study attacker mindset because it helps them see their systems the way an outsider, intruder, or "
+            "opportunist might see them. That does not mean becoming an attacker. It means understanding what usually stands out "
+            "first: exposed services, weak trust boundaries, unpatched software, missing visibility, excessive privileges, stale "
+            "certificates, risky defaults, and quiet misconfigurations.\n\n"
+            "In practice, attackers are often looking for leverage more than brilliance. They want reachable systems, useful "
+            "metadata, identity mistakes, weak segmentation, forgotten admin surfaces, vulnerable dependencies, or places where "
+            "one small foothold can become a larger chain.\n\n"
+            "The defensive lesson is not 'how do I break in?' The lesson is 'what would make my environment attractive, quiet, or "
+            "easy to move through?' Good defense comes from shrinking those opportunities with patching, least privilege, strong "
+            "defaults, trustworthy certificates, safer headers, logging, isolation, and fast response."
+        ),
+    ),
     "host": Lesson(
         slug="host",
         title="What Is a Host?",
