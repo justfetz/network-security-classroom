@@ -108,6 +108,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["demo", "live"],
         help="TLS backend to use. Default is the safe deterministic demo backend.",
     )
+    tls_parser.add_argument(
+        "--demo-trust-state",
+        default="valid",
+        choices=["valid", "hostname-mismatch", "expired", "self-signed"],
+        help="Trust scenario to simulate when using the demo backend.",
+    )
     tls_parser.add_argument("--output", help="Optional Markdown output path")
 
     http_parser = lab_subparsers.add_parser("http", help="Inspect HTTP security headers")
@@ -245,6 +251,7 @@ def run(argv: list[str] | None = None) -> int:
                 args.target,
                 args.port,
                 backend_name=args.backend,
+                demo_trust_state=args.demo_trust_state,
             )
         except (ValueError, RuntimeError, OSError, ssl.SSLError) as exc:
             print(str(exc), file=sys.stderr)

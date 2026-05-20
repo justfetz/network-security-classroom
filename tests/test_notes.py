@@ -92,6 +92,7 @@ def test_export_tls_markdown_writes_file():
         issuer="CN=Demo CA",
         valid_from="2026-01-01T00:00:00Z",
         valid_to="2027-01-01T00:00:00Z",
+        trust_state="valid",
         explanation="A certificate helps establish identity.",
     )
     output = Path("tests") / "_tmp_tls.md"

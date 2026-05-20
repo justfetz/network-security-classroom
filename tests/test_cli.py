@@ -124,6 +124,25 @@ def test_cli_runs_tls_lab(capsys):
     assert "TLS backend: demo" in out
     assert "TLS certificate inspection for example.com:443" in out
     assert "Subject: CN=example.com" in out
+    assert "Trust assessment: valid" in out
+
+
+def test_cli_runs_tls_lab_with_hostname_mismatch(capsys):
+    result = run(
+        [
+            "lab",
+            "tls",
+            "--target",
+            "example.com",
+            "--port",
+            "443",
+            "--demo-trust-state",
+            "hostname-mismatch",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "Trust assessment: hostname-mismatch" in out
 
 
 def test_cli_rejects_invalid_tls_port(capsys):

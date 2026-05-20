@@ -50,6 +50,7 @@ class TlsCertificateResult:
     issuer: str
     valid_from: str
     valid_to: str
+    trust_state: str
     explanation: str
 
 
@@ -212,29 +213,50 @@ class LiveDnsBackend(DnsBackend):
 class TlsBackend:
     """Interface for TLS certificate inspection."""
 
-    def inspect(self, target: str, port: int) -> TlsCertificateResult:  # pragma: no cover
+    def inspect(
+        self,
+        target: str,
+        port: int,
+        demo_trust_state: str = "valid",
+    ) -> TlsCertificateResult:  # pragma: no cover
         raise NotImplementedError
 
 
 class DemoTlsBackend(TlsBackend):
     """Deterministic backend for teaching certificate fields."""
 
-    def inspect(self, target: str, port: int) -> TlsCertificateResult:
+    def inspect(self, target: str, port: int, demo_trust_state: str = "valid") -> TlsCertificateResult:
+        trust_state = validate_demo_trust_state(demo_trust_state)
+        subject = f"CN={target}"
+        issuer = "CN=Demo Intermediate CA"
+        valid_from = "2026-01-01T00:00:00Z"
+        valid_to = "2027-01-01T00:00:00Z"
+
+        if trust_state == "hostname-mismatch":
+            subject = "CN=api.example.com"
+        elif trust_state == "expired":
+            valid_from = "2024-01-01T00:00:00Z"
+            valid_to = "2025-01-01T00:00:00Z"
+        elif trust_state == "self-signed":
+            issuer = f"CN={target}"
+
         return TlsCertificateResult(
             target=target,
             port=port,
-            subject=f"CN={target}",
-            issuer="CN=Demo Intermediate CA",
-            valid_from="2026-01-01T00:00:00Z",
-            valid_to="2027-01-01T00:00:00Z",
-            explanation=_tls_explanation(target),
+            subject=subject,
+            issuer=issuer,
+            valid_from=valid_from,
+            valid_to=valid_to,
+            trust_state=trust_state,
+            explanation=_tls_explanation(target, trust_state),
         )
 
 
 class LiveTlsBackend(TlsBackend):
     """Socket/SSL-backed certificate inspection for local learning labs."""
 
-    def inspect(self, target: str, port: int) -> TlsCertificateResult:
+    def inspect(self, target: str, port: int, demo_trust_state: str = "valid") -> TlsCertificateResult:
+        del demo_trust_state
         context = ssl.create_default_context()
         with socket.create_connection((target, port), timeout=5) as sock:
             with context.wrap_socket(sock, server_hostname=target) as wrapped:
@@ -244,6 +266,7 @@ class LiveTlsBackend(TlsBackend):
         issuer = _flatten_name(cert.get("issuer", ()))
         valid_from = _normalize_cert_time(cert.get("notBefore", ""))
         valid_to = _normalize_cert_time(cert.get("notAfter", ""))
+        trust_state = _infer_live_trust_state(target, subject, issuer, valid_to)
         return TlsCertificateResult(
             target=target,
             port=port,
@@ -251,7 +274,8 @@ class LiveTlsBackend(TlsBackend):
             issuer=issuer,
             valid_from=valid_from,
             valid_to=valid_to,
-            explanation=_tls_explanation(target),
+            trust_state=trust_state,
+            explanation=_tls_explanation(target, trust_state),
         )
 
 
@@ -412,11 +436,23 @@ def run_tls_inspection(
     port: int | str,
     backend: TlsBackend | None = None,
     backend_name: str = "demo",
+    demo_trust_state: str = "valid",
 ) -> TlsCertificateResult:
     normalized_target = validate_target_host(target)
     normalized_port = validate_port(port)
     active_backend = backend or get_tls_backend(backend_name)
-    return active_backend.inspect(normalized_target, normalized_port)
+    return active_backend.inspect(
+        normalized_target,
+        normalized_port,
+        demo_trust_state=demo_trust_state,
+    )
+
+
+def validate_demo_trust_state(state: str) -> str:
+    normalized = state.strip().casefold()
+    if normalized not in {"valid", "hostname-mismatch", "expired", "self-signed"}:
+        raise ValueError(f"Invalid demo trust state: {state}")
+    return normalized
 
 
 def validate_url(url: str) -> str:
@@ -531,6 +567,7 @@ def render_tls_summary(result: TlsCertificateResult) -> str:
         f"Issuer: {result.issuer}\n"
         f"Valid from: {result.valid_from}\n"
         f"Valid to: {result.valid_to}\n\n"
+        f"Trust assessment: {result.trust_state}\n\n"
         f"{result.explanation}"
     )
 
@@ -544,6 +581,7 @@ def render_tls_markdown(result: TlsCertificateResult) -> str:
         f"Issuer: `{result.issuer}`\n\n"
         f"Valid from: `{result.valid_from}`\n\n"
         f"Valid to: `{result.valid_to}`\n\n"
+        f"Trust assessment: `{result.trust_state}`\n\n"
         "## Interpretation\n\n"
         f"{result.explanation}\n"
     )
@@ -618,11 +656,18 @@ def _dns_explanation(domain: str) -> str:
     )
 
 
-def _tls_explanation(target: str) -> str:
-    return (
+def _tls_explanation(target: str, trust_state: str) -> str:
+    base = (
         f"A TLS certificate helps a client decide whether it is really talking to {target} or an impostor. "
         "The subject and issuer help describe identity, while the validity window helps show whether the certificate is current."
     )
+    if trust_state == "hostname-mismatch":
+        return base + " In this case, the certificate name does not appear to match the host you asked for, which is a classic hostname warning."
+    if trust_state == "expired":
+        return base + " In this case, the certificate appears to be outside its validity window, which usually means the certificate needs renewal."
+    if trust_state == "self-signed":
+        return base + " In this case, the certificate appears self-signed, which can be normal in a lab but requires extra trust decisions in real environments."
+    return base + " In this case, nothing obvious stands out in the simplified trust interpretation."
 
 
 def _http_explanation(headers: dict[str, str]) -> str:
@@ -665,6 +710,30 @@ def _normalize_cert_time(value: str) -> str:
         return parsed.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
     except ValueError:
         return value
+
+
+def _infer_live_trust_state(target: str, subject: str, issuer: str, valid_to: str) -> str:
+    target_lower = target.casefold()
+    subject_lower = subject.casefold()
+    issuer_lower = issuer.casefold()
+
+    if target_lower not in subject_lower:
+        return "hostname-mismatch"
+    if subject_lower == issuer_lower:
+        return "self-signed"
+    if _is_past(valid_to):
+        return "expired"
+    return "valid"
+
+
+def _is_past(value: str) -> bool:
+    if value == "unknown":
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed < datetime.now(timezone.utc)
+    except ValueError:
+        return False
 
 
 def _interesting_http_header_lines(headers: dict[str, str]) -> list[str]:

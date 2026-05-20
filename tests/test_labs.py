@@ -36,6 +36,7 @@ from network_security_classroom.labs import (
     run_tls_inspection,
     run_tcp_handshake,
     validate_demo_domain,
+    validate_demo_trust_state,
     validate_demo_tcp_state,
     validate_network_range,
     validate_port,
@@ -224,6 +225,27 @@ def test_run_tls_inspection_demo():
     result = run_tls_inspection("example.com", 443, backend_name="demo")
     assert result.subject == "CN=example.com"
     assert "identity" in result.explanation
+    assert result.trust_state == "valid"
+
+
+def test_run_tls_inspection_demo_hostname_mismatch():
+    result = run_tls_inspection(
+        "example.com",
+        443,
+        backend_name="demo",
+        demo_trust_state="hostname-mismatch",
+    )
+    assert result.trust_state == "hostname-mismatch"
+    assert "does not appear to match" in result.explanation
+
+
+def test_validate_demo_trust_state_rejects_bad_value():
+    try:
+        validate_demo_trust_state("strange")
+    except ValueError as exc:
+        assert "Invalid demo trust state" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
 
 
 def test_render_tls_summary_and_markdown():
@@ -234,12 +256,14 @@ def test_render_tls_summary_and_markdown():
         issuer="CN=Demo CA",
         valid_from="2026-01-01T00:00:00Z",
         valid_to="2027-01-01T00:00:00Z",
+        trust_state="valid",
         explanation="A certificate helps establish identity.",
     )
     summary = render_tls_summary(result)
     markdown = render_tls_markdown(result)
     assert "Subject: CN=example.com" in summary
     assert "Issuer: `CN=Demo CA`" in markdown
+    assert "Trust assessment: valid" in summary
 
 
 def test_validate_url_rejects_non_http_scheme():
