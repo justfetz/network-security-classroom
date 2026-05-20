@@ -6,6 +6,8 @@ import argparse
 from pathlib import Path
 import sys
 
+from .ask import get_ask_provider, render_ask_response
+from .config import AskConfig, get_config_path, load_ask_config, save_ask_config
 from .explore import get_topic, list_topics, render_topic_summary, render_welcome, suggest_next
 from .labs import (
     render_arp_summary,
@@ -100,6 +102,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     next_parser = explore_subparsers.add_parser("next", help="Suggest related next topics")
     next_parser.add_argument("slug", help="Topic slug to branch from")
+
+    ask_parser = subparsers.add_parser("ask", help="Ask a security question in plain English")
+    ask_parser.add_argument("question", nargs="?", help="Plain-English question to ask")
+    ask_parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="Configure an optional remote ask provider",
+    )
+    ask_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current ask provider status",
+    )
+    ask_parser.add_argument(
+        "--provider",
+        choices=["local", "openai", "huggingface"],
+        help="Provider override used with --setup",
+    )
 
     return parser
 
@@ -216,12 +236,64 @@ def run(argv: list[str] | None = None) -> int:
             print(f"- {topic}")
         return 0
 
+    if args.command == "ask":
+        if args.setup:
+            path = run_ask_setup(provider_override=args.provider)
+            print(f"Saved ask configuration to {path}")
+            return 0
+        if args.status:
+            config = load_ask_config()
+            print(f"Provider: {config.provider}")
+            print(f"Model: {config.model or '(default)'}")
+            print(f"Config path: {get_config_path()}")
+            print(f"OpenAI key configured: {'yes' if bool(config.openai_api_key) else 'no'}")
+            print(f"Hugging Face key configured: {'yes' if bool(config.hf_api_key) else 'no'}")
+            return 0
+        if args.question:
+            try:
+                config = load_ask_config()
+                provider = get_ask_provider(config)
+                response = provider.answer(args.question)
+            except (ValueError, RuntimeError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(render_ask_response(response))
+            return 0
+        print("Usage: nsc ask \"your question here\"  |  nsc ask --setup  |  nsc ask --status")
+        return 1
+
     parser.print_help()
     return 1
 
 
 def main() -> None:
     raise SystemExit(run())
+
+
+def run_ask_setup(provider_override: str | None = None):
+    provider = provider_override or input("Ask provider [local/openai/huggingface]: ").strip().casefold() or "local"
+    if provider not in {"local", "openai", "huggingface"}:
+        raise ValueError(f"Unknown ask provider: {provider}")
+
+    model = ""
+    openai_api_key = ""
+    hf_api_key = ""
+
+    if provider == "openai":
+        model = input("OpenAI model [gpt-4.1-mini]: ").strip() or "gpt-4.1-mini"
+        openai_api_key = input("OpenAI API key: ").strip()
+    elif provider == "huggingface":
+        model = input("Hugging Face model [meta-llama/Meta-Llama-3.1-8B-Instruct]: ").strip() or (
+            "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        )
+        hf_api_key = input("Hugging Face token: ").strip()
+
+    return save_ask_config(
+        provider=provider,
+        model=model,
+        openai_api_key=openai_api_key,
+        hf_api_key=hf_api_key,
+    )
 
 
 if __name__ == "__main__":

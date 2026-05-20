@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from network_security_classroom import cli
 from network_security_classroom.cli import run
 
 
@@ -145,3 +146,33 @@ def test_cli_rejects_unknown_exploration_topic(capsys):
     err = capsys.readouterr().err
     assert result == 1
     assert "Unknown exploration topic: missing" in err
+
+
+def test_cli_runs_local_ask_mode(capsys):
+    result = run(["ask", "why does metadata matter?"])
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "Source: local" in out
+    assert "Related topics:" in out
+
+
+def test_cli_shows_ask_status(monkeypatch, capsys):
+    monkeypatch.setattr(
+        cli,
+        "load_ask_config",
+        lambda: cli.AskConfig(provider="local", model="", openai_api_key="", hf_api_key=""),
+    )
+    monkeypatch.setattr(cli, "get_config_path", lambda: Path("C:/fake/.nsc/config.toml"))
+    result = run(["ask", "--status"])
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "Provider: local" in out
+    assert "Config path:" in out
+
+
+def test_cli_runs_ask_setup_with_provider_override(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "run_ask_setup", lambda provider_override=None: Path("C:/fake/.nsc/config.toml"))
+    result = run(["ask", "--setup", "--provider", "local"])
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "Saved ask configuration" in out

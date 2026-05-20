@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "A defensive CLI for learning networking and modern security concepts."
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = []
 
 [project.optional-dependencies]
 dev = [

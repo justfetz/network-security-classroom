@@ -124,6 +124,7 @@ def render_welcome() -> str:
         "A defensive CLI for learning security in a curious, forgiving way.\n\n"
         "Start here:\n"
         "- nsc explore topics\n"
+        "- nsc ask \"why does metadata matter?\"\n"
         "- nsc lesson list\n"
         "- nsc lab arp --range 192.168.1.0/24\n"
         "- nsc lab tcp --target 192.168.1.1 --port 443\n"

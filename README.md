@@ -24,6 +24,7 @@ The next slice adds:
 - TCP handshake learning for one host and port
 - DNS metadata learning with safe demo output
 - exploration mode with a topic map and next-step suggestions
+- ask mode with local answers first and optional BYO-key LLM providers
 
 The first shipped lessons are:
 
@@ -38,6 +39,9 @@ After editable install:
 
 ```powershell
 nsc
+nsc ask "why does metadata matter?"
+nsc ask --status
+nsc ask --setup
 nsc explore topics
 nsc explore topic metadata
 nsc explore next zero-day
@@ -55,6 +59,7 @@ Or run directly:
 
 ```powershell
 python -m network_security_classroom.cli
+python -m network_security_classroom.cli ask "what is a zero-day?"
 python -m network_security_classroom.cli explore topics
 python -m network_security_classroom.cli lesson list
 python -m network_security_classroom.cli lesson show tls-metadata
@@ -66,12 +71,20 @@ python -m network_security_classroom.cli lab dns --demo-domain example.com
 
 `demo` mode is the default. `live` mode is optional and intended for a home lab or hotspot box where packet capture tooling is installed and explicitly allowed.
 
+`ask` mode works with a local provider by default. Users can optionally configure their own OpenAI or Hugging Face key through `nsc ask --setup`.
+
 ## Development
 
 ```powershell
 pip install -e .[dev]
 pytest
 ```
+
+`pip install -e .[dev]` means:
+
+- `-e`: install in editable mode, so code changes are picked up without reinstalling
+- `.`: install the current project
+- `[dev]`: also install the optional development dependency group defined in `pyproject.toml`
 
 ## Project shape
 
