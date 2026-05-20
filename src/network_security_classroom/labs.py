@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import importlib
 import ipaddress
+import json
 import socket
 import ssl
 from datetime import datetime, timezone
+from urllib import request
+from urllib.error import URLError
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,14 @@ class TlsCertificateResult:
     issuer: str
     valid_from: str
     valid_to: str
+    explanation: str
+
+
+@dataclass(frozen=True)
+class HttpHeaderResult:
+    url: str
+    status_code: int
+    headers: dict[str, str]
     explanation: str
 
 
@@ -244,6 +255,51 @@ class LiveTlsBackend(TlsBackend):
         )
 
 
+class HttpBackend:
+    """Interface for HTTP header inspection."""
+
+    def inspect(self, url: str) -> HttpHeaderResult:  # pragma: no cover
+        raise NotImplementedError
+
+
+class DemoHttpBackend(HttpBackend):
+    """Deterministic backend for teaching security-relevant headers."""
+
+    def inspect(self, url: str) -> HttpHeaderResult:
+        headers = {
+            "strict-transport-security": "max-age=31536000; includeSubDomains",
+            "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+            "x-content-type-options": "nosniff",
+            "x-frame-options": "DENY",
+            "referrer-policy": "strict-origin-when-cross-origin",
+        }
+        return HttpHeaderResult(
+            url=url,
+            status_code=200,
+            headers=headers,
+            explanation=_http_explanation(headers),
+        )
+
+
+class LiveHttpBackend(HttpBackend):
+    """urllib-backed HTTP header inspection for learning labs."""
+
+    def inspect(self, url: str) -> HttpHeaderResult:
+        try:
+            with request.urlopen(url, timeout=10) as response:
+                headers = {key.casefold(): value for key, value in response.headers.items()}
+                status_code = getattr(response, "status", 200)
+        except URLError as exc:
+            raise RuntimeError(f"HTTP inspection failed: {exc}") from exc
+
+        return HttpHeaderResult(
+            url=url,
+            status_code=status_code,
+            headers=headers,
+            explanation=_http_explanation(headers),
+        )
+
+
 def validate_network_range(network: str) -> str:
     try:
         parsed = ipaddress.ip_network(network, strict=False)
@@ -363,6 +419,32 @@ def run_tls_inspection(
     return active_backend.inspect(normalized_target, normalized_port)
 
 
+def validate_url(url: str) -> str:
+    value = url.strip()
+    if not value.startswith(("http://", "https://")):
+        raise ValueError(f"Invalid URL: {url}")
+    return value
+
+
+def get_http_backend(name: str = "demo") -> HttpBackend:
+    normalized = name.strip().casefold()
+    if normalized == "demo":
+        return DemoHttpBackend()
+    if normalized == "live":
+        return LiveHttpBackend()
+    raise ValueError(f"Unknown HTTP backend: {name}")
+
+
+def run_http_inspection(
+    url: str,
+    backend: HttpBackend | None = None,
+    backend_name: str = "demo",
+) -> HttpHeaderResult:
+    normalized_url = validate_url(url)
+    active_backend = backend or get_http_backend(backend_name)
+    return active_backend.inspect(normalized_url)
+
+
 def render_arp_summary(result: ArpScanResult) -> str:
     lines = [
         f"ARP discovery for {result.network}",
@@ -467,6 +549,31 @@ def render_tls_markdown(result: TlsCertificateResult) -> str:
     )
 
 
+def render_http_summary(result: HttpHeaderResult) -> str:
+    interesting = _interesting_http_header_lines(result.headers)
+    header_lines = "\n".join(interesting) if interesting else "No tracked security headers found."
+    return (
+        f"HTTP header inspection for {result.url}\n\n"
+        f"Status: {result.status_code}\n\n"
+        f"{header_lines}\n\n"
+        f"{result.explanation}"
+    )
+
+
+def render_http_markdown(result: HttpHeaderResult) -> str:
+    interesting = _interesting_http_header_lines(result.headers)
+    header_lines = "\n".join(f"- {line}" for line in interesting) if interesting else "- No tracked security headers found."
+    return (
+        "# HTTP Header Notes\n\n"
+        f"URL: `{result.url}`\n\n"
+        f"Status: `{result.status_code}`\n\n"
+        "## Observed Headers\n\n"
+        f"{header_lines}\n\n"
+        "## Interpretation\n\n"
+        f"{result.explanation}\n"
+    )
+
+
 def _guess_gateway_ip(network: str) -> str:
     parsed = ipaddress.ip_network(network, strict=False)
     first_host = next(parsed.hosts(), parsed.network_address)
@@ -518,6 +625,30 @@ def _tls_explanation(target: str) -> str:
     )
 
 
+def _http_explanation(headers: dict[str, str]) -> str:
+    present = []
+    missing = []
+    tracked = {
+        "strict-transport-security": "HSTS helps force HTTPS after trust is established.",
+        "content-security-policy": "CSP can limit where scripts, frames, and other content may load from.",
+        "x-content-type-options": "nosniff helps reduce MIME confusion issues.",
+        "x-frame-options": "frame protections help reduce clickjacking risk.",
+        "referrer-policy": "referrer policy can reduce how much navigation context leaks outward.",
+    }
+    for key, explanation in tracked.items():
+        if key in headers:
+            present.append(explanation)
+        else:
+            missing.append(key)
+
+    parts = []
+    if present:
+        parts.append("Present protections: " + " ".join(present))
+    if missing:
+        parts.append("Missing tracked headers: " + ", ".join(missing) + ".")
+    return " ".join(parts) if parts else "No tracked security header guidance available."
+
+
 def _flatten_name(name_parts) -> str:
     pairs = []
     for group in name_parts:
@@ -534,6 +665,21 @@ def _normalize_cert_time(value: str) -> str:
         return parsed.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
     except ValueError:
         return value
+
+
+def _interesting_http_header_lines(headers: dict[str, str]) -> list[str]:
+    keys = [
+        "strict-transport-security",
+        "content-security-policy",
+        "x-content-type-options",
+        "x-frame-options",
+        "referrer-policy",
+    ]
+    lines = []
+    for key in keys:
+        if key in headers:
+            lines.append(f"{key}: {headers[key]}")
+    return lines
 
 
 def _load_scapy_all():

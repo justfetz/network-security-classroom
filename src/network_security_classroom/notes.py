@@ -8,10 +8,12 @@ from .lessons import Lesson
 from .labs import (
     ArpScanResult,
     DnsObservationResult,
+    HttpHeaderResult,
     TlsCertificateResult,
     TcpHandshakeResult,
     render_arp_markdown,
     render_dns_markdown,
+    render_http_markdown,
     render_tls_markdown,
     render_tcp_markdown,
 )
@@ -55,4 +57,10 @@ def export_dns_markdown(result: DnsObservationResult, output_path: str | None = 
 def export_tls_markdown(result: TlsCertificateResult, output_path: str | None = None) -> Path:
     path = Path(output_path) if output_path else Path("tls-certificate.md")
     path.write_text(render_tls_markdown(result), encoding="utf-8")
+    return path
+
+
+def export_http_markdown(result: HttpHeaderResult, output_path: str | None = None) -> Path:
+    path = Path(output_path) if output_path else Path("http-headers.md")
+    path.write_text(render_http_markdown(result), encoding="utf-8")
     return path

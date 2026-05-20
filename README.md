@@ -64,6 +64,7 @@ The next slice adds:
 - exploration mode with a topic map and next-step suggestions
 - ask mode with local answers first and optional BYO-key LLM providers
 - TLS certificate inspection as an intermediate lab
+- HTTP headers and security posture inspection
 
 The first shipped lessons are:
 
@@ -124,6 +125,7 @@ nsc lab arp --range 192.168.1.0/24 --backend live
 nsc lab tcp --target 192.168.1.1 --port 443
 nsc lab dns --demo-domain example.com
 nsc lab tls --target example.com --port 443
+nsc lab http --url https://example.com
 ```
 
 If you prefer not to install the command, run directly from the repo:
@@ -140,6 +142,7 @@ python -m network_security_classroom.cli lab arp --range 192.168.1.0/24
 python -m network_security_classroom.cli lab tcp --target 192.168.1.1 --port 443
 python -m network_security_classroom.cli lab dns --demo-domain example.com
 python -m network_security_classroom.cli lab tls --target example.com --port 443
+python -m network_security_classroom.cli lab http --url https://example.com
 ```
 
 `demo` mode is the default. `live` mode is optional and intended for a home lab or hotspot box where packet capture tooling is installed and explicitly allowed.
@@ -206,6 +209,7 @@ Current labs:
 - `tcp`
 - `dns`
 - `tls`
+- `http`
 
 Current exploration features:
 

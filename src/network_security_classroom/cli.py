@@ -13,10 +13,12 @@ from .explore import get_topic, list_topics, render_topic_summary, render_welcom
 from .labs import (
     render_arp_summary,
     render_dns_summary,
+    render_http_summary,
     render_tls_summary,
     render_tcp_summary,
     run_arp_discovery,
     run_dns_observation,
+    run_http_inspection,
     run_tls_inspection,
     run_tcp_handshake,
 )
@@ -24,6 +26,7 @@ from .lessons import get_lesson, list_lessons
 from .notes import (
     export_arp_markdown,
     export_dns_markdown,
+    export_http_markdown,
     export_lesson_markdown,
     export_tls_markdown,
     export_tcp_markdown,
@@ -106,6 +109,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="TLS backend to use. Default is the safe deterministic demo backend.",
     )
     tls_parser.add_argument("--output", help="Optional Markdown output path")
+
+    http_parser = lab_subparsers.add_parser("http", help="Inspect HTTP security headers")
+    http_parser.add_argument("--url", required=True, help="Target URL to inspect")
+    http_parser.add_argument(
+        "--backend",
+        default="demo",
+        choices=["demo", "live"],
+        help="HTTP backend to use. Default is the safe deterministic demo backend.",
+    )
+    http_parser.add_argument("--output", help="Optional Markdown output path")
 
     explore_parser = subparsers.add_parser("explore", help="Browse topics and next-step suggestions")
     explore_subparsers = explore_parser.add_subparsers(dest="explore_command")
@@ -241,6 +254,24 @@ def run(argv: list[str] | None = None) -> int:
         print(render_tls_summary(result))
         if args.output:
             path = export_tls_markdown(result, args.output)
+            print()
+            print(f"Exported notes to {Path(path).resolve()}")
+        return 0
+
+    if args.command == "lab" and args.lab_command == "http":
+        try:
+            result = run_http_inspection(
+                args.url,
+                backend_name=args.backend,
+            )
+        except (ValueError, RuntimeError, OSError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"HTTP backend: {args.backend}")
+        print()
+        print(render_http_summary(result))
+        if args.output:
+            path = export_http_markdown(result, args.output)
             print()
             print(f"Exported notes to {Path(path).resolve()}")
         return 0

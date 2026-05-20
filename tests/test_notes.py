@@ -4,6 +4,7 @@ from network_security_classroom.labs import (
     ArpDevice,
     ArpScanResult,
     DnsObservationResult,
+    HttpHeaderResult,
     TlsCertificateResult,
     TcpHandshakeResult,
 )
@@ -11,6 +12,7 @@ from network_security_classroom.lessons import get_lesson
 from network_security_classroom.notes import (
     export_arp_markdown,
     export_dns_markdown,
+    export_http_markdown,
     export_lesson_markdown,
     export_tls_markdown,
     export_tcp_markdown,
@@ -96,6 +98,22 @@ def test_export_tls_markdown_writes_file():
     if output.exists():
         output.unlink()
     path = export_tls_markdown(result, str(output))
+    assert path == output
+    assert output.exists()
+    output.unlink()
+
+
+def test_export_http_markdown_writes_file():
+    result = HttpHeaderResult(
+        url="https://example.com",
+        status_code=200,
+        headers={"x-frame-options": "DENY"},
+        explanation="Present protections: frame protections help reduce clickjacking risk.",
+    )
+    output = Path("tests") / "_tmp_http.md"
+    if output.exists():
+        output.unlink()
+    path = export_http_markdown(result, str(output))
     assert path == output
     assert output.exists()
     output.unlink()

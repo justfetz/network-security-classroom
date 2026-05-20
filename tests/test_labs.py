@@ -3,29 +3,36 @@ from network_security_classroom.labs import (
     ArpScanResult,
     DemoDnsBackend,
     DemoArpBackend,
+    DemoHttpBackend,
     DemoTlsBackend,
     DemoTcpBackend,
     DnsObservationResult,
+    HttpHeaderResult,
     LiveArpBackend,
     LiveDnsBackend,
+    LiveHttpBackend,
     LiveTlsBackend,
     LiveTcpBackend,
     TlsCertificateResult,
     TcpHandshakeResult,
     get_arp_backend,
     get_dns_backend,
+    get_http_backend,
     get_tls_backend,
     get_tcp_backend,
     render_arp_markdown,
     render_arp_summary,
     render_dns_markdown,
     render_dns_summary,
+    render_http_markdown,
+    render_http_summary,
     render_tls_markdown,
     render_tls_summary,
     render_tcp_markdown,
     render_tcp_summary,
     run_arp_discovery,
     run_dns_observation,
+    run_http_inspection,
     run_tls_inspection,
     run_tcp_handshake,
     validate_demo_domain,
@@ -33,6 +40,7 @@ from network_security_classroom.labs import (
     validate_network_range,
     validate_port,
     validate_target_host,
+    validate_url,
 )
 
 
@@ -232,6 +240,45 @@ def test_render_tls_summary_and_markdown():
     markdown = render_tls_markdown(result)
     assert "Subject: CN=example.com" in summary
     assert "Issuer: `CN=Demo CA`" in markdown
+
+
+def test_validate_url_rejects_non_http_scheme():
+    try:
+        validate_url("example.com")
+    except ValueError as exc:
+        assert "Invalid URL" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
+def test_get_http_backend_returns_demo_backend():
+    backend = get_http_backend("demo")
+    assert isinstance(backend, DemoHttpBackend)
+
+
+def test_get_http_backend_returns_live_backend():
+    backend = get_http_backend("live")
+    assert isinstance(backend, LiveHttpBackend)
+
+
+def test_run_http_inspection_demo():
+    result = run_http_inspection("https://example.com", backend_name="demo")
+    assert result.status_code == 200
+    assert "strict-transport-security" in result.headers
+    assert "Present protections" in result.explanation
+
+
+def test_render_http_summary_and_markdown():
+    result = HttpHeaderResult(
+        url="https://example.com",
+        status_code=200,
+        headers={"strict-transport-security": "max-age=31536000"},
+        explanation="Present protections: HSTS helps force HTTPS after trust is established.",
+    )
+    summary = render_http_summary(result)
+    markdown = render_http_markdown(result)
+    assert "Status: 200" in summary
+    assert "strict-transport-security" in markdown
 
 
 def test_render_arp_summary_includes_role_hints():

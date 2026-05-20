@@ -133,6 +133,22 @@ def test_cli_rejects_invalid_tls_port(capsys):
     assert "Invalid port" in err
 
 
+def test_cli_runs_http_lab(capsys):
+    result = run(["lab", "http", "--url", "https://example.com"])
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "HTTP backend: demo" in out
+    assert "HTTP header inspection for https://example.com" in out
+    assert "strict-transport-security" in out
+
+
+def test_cli_rejects_invalid_http_url(capsys):
+    result = run(["lab", "http", "--url", "example.com"])
+    err = capsys.readouterr().err
+    assert result == 1
+    assert "Invalid URL" in err
+
+
 def test_cli_lists_exploration_topics(capsys):
     result = run(["explore", "topics"])
     out = capsys.readouterr().out
