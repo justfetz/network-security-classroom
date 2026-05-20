@@ -2,6 +2,35 @@
 
 Network Security Classroom is a defensive CLI that teaches networking and modern security concepts through plain-English lessons and generated study notes.
 
+## Start Here
+
+If you want to open the project in a terminal and start learning right away, use this flow:
+
+```powershell
+cd C:\Users\Admin\Documents\network-security-classroom
+pip install -e .[dev]
+nsc
+```
+
+That will:
+
+- install the CLI locally in editable mode
+- install the test and coverage tools
+- make the `nsc` command available in your shell
+
+If you do not want to install it yet, you can run it directly like this:
+
+```powershell
+cd C:\Users\Admin\Documents\network-security-classroom
+$env:PYTHONPATH='src'
+python -m network_security_classroom.cli
+```
+
+The important part is that one of these must be true before `python -m network_security_classroom.cli` works:
+
+- you already ran `pip install -e .[dev]`, or
+- you set `PYTHONPATH=src` for the current shell
+
 ## Why this exists
 
 There are a lot of security tools that assume you already understand the basics. This project is for people who want to build that understanding deliberately, from networking foundations to more advanced topics like zero-days, exploit chains, and defensive reasoning.
@@ -33,9 +62,40 @@ The first shipped lessons are:
 - `tls-metadata`
 - `zero-day`
 
-## Usage
+## First Learning Session
 
-After editable install:
+After install, this is the simplest “feel the project” path:
+
+```powershell
+nsc
+nsc explore topics
+nsc explore topic metadata
+nsc lesson show tls-metadata
+nsc lab tcp --target 192.168.1.1 --port 443
+nsc lab dns --demo-domain example.com
+nsc ask "why does metadata matter?"
+```
+
+What each step does:
+
+- `nsc`
+  - opens the welcome screen
+- `nsc explore topics`
+  - shows the topic map
+- `nsc explore topic metadata`
+  - explains why metadata matters and what to try next
+- `nsc lesson show tls-metadata`
+  - gives the plain-English content vs metadata lesson
+- `nsc lab tcp ...`
+  - shows what open, closed, or filtered means
+- `nsc lab dns ...`
+  - shows why DNS can reveal intent
+- `nsc ask ...`
+  - lets the user ask a plain-English question
+
+## Command Reference
+
+After editable install, these all work:
 
 ```powershell
 nsc
@@ -55,9 +115,10 @@ nsc lab tcp --target 192.168.1.1 --port 443
 nsc lab dns --demo-domain example.com
 ```
 
-Or run directly:
+If you prefer not to install the command, run directly from the repo:
 
 ```powershell
+$env:PYTHONPATH='src'
 python -m network_security_classroom.cli
 python -m network_security_classroom.cli ask "what is a zero-day?"
 python -m network_security_classroom.cli explore topics
@@ -72,6 +133,29 @@ python -m network_security_classroom.cli lab dns --demo-domain example.com
 `demo` mode is the default. `live` mode is optional and intended for a home lab or hotspot box where packet capture tooling is installed and explicitly allowed.
 
 `ask` mode works with a local provider by default. Users can optionally configure their own OpenAI or Hugging Face key through `nsc ask --setup`.
+
+## Ask Mode
+
+The project does not use the author's API keys.
+
+By default:
+
+- `nsc ask "..."` uses a local knowledge-backed provider
+- no remote model is required
+- no API key is required
+
+If a user wants remote model support, they can bring their own key:
+
+```powershell
+nsc ask --setup
+nsc ask --status
+```
+
+Supported provider pattern:
+
+- `local`
+- `openai`
+- `huggingface`
 
 ## Development
 
@@ -94,3 +178,24 @@ pytest
   - CLI, lesson registry, labs, and exploration mode
 - `tests/`
   - unit tests for command behavior and note generation
+
+## Current Scope
+
+Current lessons:
+
+- `host`
+- `handshake`
+- `tls-metadata`
+- `zero-day`
+
+Current labs:
+
+- `arp`
+- `tcp`
+- `dns`
+
+Current exploration features:
+
+- topic map
+- related-topic suggestions
+- local-first ask mode
