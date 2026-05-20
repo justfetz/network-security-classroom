@@ -7,7 +7,8 @@ Network Security Classroom is a defensive CLI that teaches networking and modern
 If you want to open the project in a terminal and start learning right away, use this flow:
 
 ```powershell
-cd C:\Users\Admin\Documents\network-security-classroom
+git clone https://github.com/justfetz/network-security-classroom.git
+cd network-security-classroom
 pip install -e .[dev]
 nsc
 ```
@@ -21,9 +22,17 @@ That will:
 If you do not want to install it yet, you can run it directly like this:
 
 ```powershell
-cd C:\Users\Admin\Documents\network-security-classroom
+cd path\to\network-security-classroom
 $env:PYTHONPATH='src'
 python -m network_security_classroom.cli
+```
+
+If you already cloned or downloaded the repo, the shortest setup is:
+
+```powershell
+cd path\to\network-security-classroom
+pip install -e .[dev]
+nsc
 ```
 
 The important part is that one of these must be true before `python -m network_security_classroom.cli` works:
