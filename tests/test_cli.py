@@ -117,6 +117,22 @@ def test_cli_rejects_live_dns_backend_without_scapy(capsys):
     assert "optional 'scapy' dependency" in err
 
 
+def test_cli_runs_tls_lab(capsys):
+    result = run(["lab", "tls", "--target", "example.com", "--port", "443"])
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "TLS backend: demo" in out
+    assert "TLS certificate inspection for example.com:443" in out
+    assert "Subject: CN=example.com" in out
+
+
+def test_cli_rejects_invalid_tls_port(capsys):
+    result = run(["lab", "tls", "--target", "example.com", "--port", "70000"])
+    err = capsys.readouterr().err
+    assert result == 1
+    assert "Invalid port" in err
+
+
 def test_cli_lists_exploration_topics(capsys):
     result = run(["explore", "topics"])
     out = capsys.readouterr().out

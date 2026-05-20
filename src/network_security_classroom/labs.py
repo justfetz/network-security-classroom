@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import importlib
 import ipaddress
 import socket
+import ssl
+from datetime import datetime, timezone
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,17 @@ class DnsObservationResult:
     source_host: str
     queried_domain: str
     transport: str
+    explanation: str
+
+
+@dataclass(frozen=True)
+class TlsCertificateResult:
+    target: str
+    port: int
+    subject: str
+    issuer: str
+    valid_from: str
+    valid_to: str
     explanation: str
 
 
@@ -185,6 +198,52 @@ class LiveDnsBackend(DnsBackend):
         )
 
 
+class TlsBackend:
+    """Interface for TLS certificate inspection."""
+
+    def inspect(self, target: str, port: int) -> TlsCertificateResult:  # pragma: no cover
+        raise NotImplementedError
+
+
+class DemoTlsBackend(TlsBackend):
+    """Deterministic backend for teaching certificate fields."""
+
+    def inspect(self, target: str, port: int) -> TlsCertificateResult:
+        return TlsCertificateResult(
+            target=target,
+            port=port,
+            subject=f"CN={target}",
+            issuer="CN=Demo Intermediate CA",
+            valid_from="2026-01-01T00:00:00Z",
+            valid_to="2027-01-01T00:00:00Z",
+            explanation=_tls_explanation(target),
+        )
+
+
+class LiveTlsBackend(TlsBackend):
+    """Socket/SSL-backed certificate inspection for local learning labs."""
+
+    def inspect(self, target: str, port: int) -> TlsCertificateResult:
+        context = ssl.create_default_context()
+        with socket.create_connection((target, port), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=target) as wrapped:
+                cert = wrapped.getpeercert()
+
+        subject = _flatten_name(cert.get("subject", ()))
+        issuer = _flatten_name(cert.get("issuer", ()))
+        valid_from = _normalize_cert_time(cert.get("notBefore", ""))
+        valid_to = _normalize_cert_time(cert.get("notAfter", ""))
+        return TlsCertificateResult(
+            target=target,
+            port=port,
+            subject=subject,
+            issuer=issuer,
+            valid_from=valid_from,
+            valid_to=valid_to,
+            explanation=_tls_explanation(target),
+        )
+
+
 def validate_network_range(network: str) -> str:
     try:
         parsed = ipaddress.ip_network(network, strict=False)
@@ -283,6 +342,27 @@ def run_dns_observation(
     return active_backend.observe(demo_domain=demo_domain)
 
 
+def get_tls_backend(name: str = "demo") -> TlsBackend:
+    normalized = name.strip().casefold()
+    if normalized == "demo":
+        return DemoTlsBackend()
+    if normalized == "live":
+        return LiveTlsBackend()
+    raise ValueError(f"Unknown TLS backend: {name}")
+
+
+def run_tls_inspection(
+    target: str,
+    port: int | str,
+    backend: TlsBackend | None = None,
+    backend_name: str = "demo",
+) -> TlsCertificateResult:
+    normalized_target = validate_target_host(target)
+    normalized_port = validate_port(port)
+    active_backend = backend or get_tls_backend(backend_name)
+    return active_backend.inspect(normalized_target, normalized_port)
+
+
 def render_arp_summary(result: ArpScanResult) -> str:
     lines = [
         f"ARP discovery for {result.network}",
@@ -362,6 +442,31 @@ def render_dns_markdown(result: DnsObservationResult) -> str:
     )
 
 
+def render_tls_summary(result: TlsCertificateResult) -> str:
+    return (
+        f"TLS certificate inspection for {result.target}:{result.port}\n\n"
+        f"Subject: {result.subject}\n"
+        f"Issuer: {result.issuer}\n"
+        f"Valid from: {result.valid_from}\n"
+        f"Valid to: {result.valid_to}\n\n"
+        f"{result.explanation}"
+    )
+
+
+def render_tls_markdown(result: TlsCertificateResult) -> str:
+    return (
+        "# TLS Certificate Notes\n\n"
+        f"Target: `{result.target}`\n\n"
+        f"Port: `{result.port}`\n\n"
+        f"Subject: `{result.subject}`\n\n"
+        f"Issuer: `{result.issuer}`\n\n"
+        f"Valid from: `{result.valid_from}`\n\n"
+        f"Valid to: `{result.valid_to}`\n\n"
+        "## Interpretation\n\n"
+        f"{result.explanation}\n"
+    )
+
+
 def _guess_gateway_ip(network: str) -> str:
     parsed = ipaddress.ip_network(network, strict=False)
     first_host = next(parsed.hosts(), parsed.network_address)
@@ -404,6 +509,31 @@ def _dns_explanation(domain: str) -> str:
         f"A DNS lookup for {domain} can reveal intent even when later application traffic is encrypted. "
         "This is why metadata matters: observers may not see page content, but they can still learn where a device is trying to go."
     )
+
+
+def _tls_explanation(target: str) -> str:
+    return (
+        f"A TLS certificate helps a client decide whether it is really talking to {target} or an impostor. "
+        "The subject and issuer help describe identity, while the validity window helps show whether the certificate is current."
+    )
+
+
+def _flatten_name(name_parts) -> str:
+    pairs = []
+    for group in name_parts:
+        for key, value in group:
+            pairs.append(f"{key}={value}")
+    return ", ".join(pairs) if pairs else "unknown"
+
+
+def _normalize_cert_time(value: str) -> str:
+    if not value:
+        return "unknown"
+    try:
+        parsed = datetime.strptime(value, "%b %d %H:%M:%S %Y %Z")
+        return parsed.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+    except ValueError:
+        return value
 
 
 def _load_scapy_all():

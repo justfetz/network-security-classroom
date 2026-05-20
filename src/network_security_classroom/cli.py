@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import ssl
 import sys
 
 from .ask import get_ask_provider, render_ask_response
@@ -12,9 +13,11 @@ from .explore import get_topic, list_topics, render_topic_summary, render_welcom
 from .labs import (
     render_arp_summary,
     render_dns_summary,
+    render_tls_summary,
     render_tcp_summary,
     run_arp_discovery,
     run_dns_observation,
+    run_tls_inspection,
     run_tcp_handshake,
 )
 from .lessons import get_lesson, list_lessons
@@ -22,6 +25,7 @@ from .notes import (
     export_arp_markdown,
     export_dns_markdown,
     export_lesson_markdown,
+    export_tls_markdown,
     export_tcp_markdown,
 )
 
@@ -91,6 +95,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Domain to simulate when using the demo backend.",
     )
     dns_parser.add_argument("--output", help="Optional Markdown output path")
+
+    tls_parser = lab_subparsers.add_parser("tls", help="Inspect a TLS certificate in a safe learning flow")
+    tls_parser.add_argument("--target", required=True, help="Target host or IP address")
+    tls_parser.add_argument("--port", required=True, help="Target TLS port")
+    tls_parser.add_argument(
+        "--backend",
+        default="demo",
+        choices=["demo", "live"],
+        help="TLS backend to use. Default is the safe deterministic demo backend.",
+    )
+    tls_parser.add_argument("--output", help="Optional Markdown output path")
 
     explore_parser = subparsers.add_parser("explore", help="Browse topics and next-step suggestions")
     explore_subparsers = explore_parser.add_subparsers(dest="explore_command")
@@ -207,6 +222,25 @@ def run(argv: list[str] | None = None) -> int:
         print(render_dns_summary(result))
         if args.output:
             path = export_dns_markdown(result, args.output)
+            print()
+            print(f"Exported notes to {Path(path).resolve()}")
+        return 0
+
+    if args.command == "lab" and args.lab_command == "tls":
+        try:
+            result = run_tls_inspection(
+                args.target,
+                args.port,
+                backend_name=args.backend,
+            )
+        except (ValueError, RuntimeError, OSError, ssl.SSLError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"TLS backend: {args.backend}")
+        print()
+        print(render_tls_summary(result))
+        if args.output:
+            path = export_tls_markdown(result, args.output)
             print()
             print(f"Exported notes to {Path(path).resolve()}")
         return 0

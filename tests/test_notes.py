@@ -4,6 +4,7 @@ from network_security_classroom.labs import (
     ArpDevice,
     ArpScanResult,
     DnsObservationResult,
+    TlsCertificateResult,
     TcpHandshakeResult,
 )
 from network_security_classroom.lessons import get_lesson
@@ -11,6 +12,7 @@ from network_security_classroom.notes import (
     export_arp_markdown,
     export_dns_markdown,
     export_lesson_markdown,
+    export_tls_markdown,
     export_tcp_markdown,
     render_lesson_markdown,
 )
@@ -75,6 +77,25 @@ def test_export_dns_markdown_writes_file():
     if output.exists():
         output.unlink()
     path = export_dns_markdown(result, str(output))
+    assert path == output
+    assert output.exists()
+    output.unlink()
+
+
+def test_export_tls_markdown_writes_file():
+    result = TlsCertificateResult(
+        target="example.com",
+        port=443,
+        subject="CN=example.com",
+        issuer="CN=Demo CA",
+        valid_from="2026-01-01T00:00:00Z",
+        valid_to="2027-01-01T00:00:00Z",
+        explanation="A certificate helps establish identity.",
+    )
+    output = Path("tests") / "_tmp_tls.md"
+    if output.exists():
+        output.unlink()
+    path = export_tls_markdown(result, str(output))
     assert path == output
     assert output.exists()
     output.unlink()

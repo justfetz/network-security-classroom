@@ -3,23 +3,30 @@ from network_security_classroom.labs import (
     ArpScanResult,
     DemoDnsBackend,
     DemoArpBackend,
+    DemoTlsBackend,
     DemoTcpBackend,
     DnsObservationResult,
     LiveArpBackend,
     LiveDnsBackend,
+    LiveTlsBackend,
     LiveTcpBackend,
+    TlsCertificateResult,
     TcpHandshakeResult,
     get_arp_backend,
     get_dns_backend,
+    get_tls_backend,
     get_tcp_backend,
     render_arp_markdown,
     render_arp_summary,
     render_dns_markdown,
     render_dns_summary,
+    render_tls_markdown,
+    render_tls_summary,
     render_tcp_markdown,
     render_tcp_summary,
     run_arp_discovery,
     run_dns_observation,
+    run_tls_inspection,
     run_tcp_handshake,
     validate_demo_domain,
     validate_demo_tcp_state,
@@ -193,6 +200,38 @@ def test_render_dns_summary_and_markdown():
     markdown = render_dns_markdown(result)
     assert "Queried domain: example.com" in summary
     assert "Queried domain: `example.com`" in markdown
+
+
+def test_get_tls_backend_returns_demo_backend():
+    backend = get_tls_backend("demo")
+    assert isinstance(backend, DemoTlsBackend)
+
+
+def test_get_tls_backend_returns_live_backend():
+    backend = get_tls_backend("live")
+    assert isinstance(backend, LiveTlsBackend)
+
+
+def test_run_tls_inspection_demo():
+    result = run_tls_inspection("example.com", 443, backend_name="demo")
+    assert result.subject == "CN=example.com"
+    assert "identity" in result.explanation
+
+
+def test_render_tls_summary_and_markdown():
+    result = TlsCertificateResult(
+        target="example.com",
+        port=443,
+        subject="CN=example.com",
+        issuer="CN=Demo CA",
+        valid_from="2026-01-01T00:00:00Z",
+        valid_to="2027-01-01T00:00:00Z",
+        explanation="A certificate helps establish identity.",
+    )
+    summary = render_tls_summary(result)
+    markdown = render_tls_markdown(result)
+    assert "Subject: CN=example.com" in summary
+    assert "Issuer: `CN=Demo CA`" in markdown
 
 
 def test_render_arp_summary_includes_role_hints():
