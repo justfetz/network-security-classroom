@@ -1,7 +1,9 @@
 from pathlib import Path
 
 from network_security_classroom import cli
+from network_security_classroom.ask import get_ask_provider as real_get_ask_provider
 from network_security_classroom.cli import run
+from network_security_classroom.memory import create_recent_context
 
 
 def test_cli_no_args_shows_welcome(capsys):
@@ -47,6 +49,21 @@ def test_cli_runs_arp_lab(capsys):
     assert "ARP backend: demo" in out
     assert "ARP discovery for 192.168.1.0/24" in out
     assert "likely gateway" in out
+
+
+def test_cli_lesson_show_saves_recent_context(monkeypatch, capsys):
+    captured = {}
+
+    def fake_save_recent_context(context):
+        captured["context"] = context
+
+    monkeypatch.setattr(cli, "save_recent_context", fake_save_recent_context)
+    result = run(["lesson", "show", "handshake"])
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "What Is a TCP Handshake?" in out
+    assert captured["context"].slug == "handshake"
+    assert captured["context"].kind == "lesson"
 
 
 def test_cli_rejects_invalid_arp_range(capsys):
@@ -214,11 +231,24 @@ def test_cli_shows_ask_status(monkeypatch, capsys):
         lambda: cli.AskConfig(provider="local", model="", openai_api_key="", hf_api_key=""),
     )
     monkeypatch.setattr(cli, "get_config_path", lambda: Path("C:/fake/.nsc/config.toml"))
+    monkeypatch.setattr(cli, "get_recent_context_path", lambda: Path("C:/fake/.nsc/recent_context.json"))
+    monkeypatch.setattr(
+        cli,
+        "load_recent_context",
+        lambda: create_recent_context(
+            kind="lab",
+            slug="tls",
+            title="TLS Certificate Lab",
+            summary="You inspected a certificate recently.",
+        ),
+    )
     result = run(["ask", "--status"])
     out = capsys.readouterr().out
     assert result == 0
     assert "Provider: local" in out
     assert "Config path:" in out
+    assert "Recent context configured: yes" in out
+    assert "Recent context title: TLS Certificate Lab" in out
 
 
 def test_cli_runs_ask_setup_with_provider_override(monkeypatch, capsys):
@@ -227,3 +257,28 @@ def test_cli_runs_ask_setup_with_provider_override(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert result == 0
     assert "Saved ask configuration" in out
+
+
+def test_cli_runs_ask_mode_with_recent_context(monkeypatch, capsys):
+    class FakeProvider:
+        def answer(self, question, recent_context=None):
+            assert recent_context is not None
+            assert recent_context.slug == "tcp"
+            return real_get_ask_provider(cli.AskConfig(provider="local")).answer(question, recent_context=recent_context)
+
+    monkeypatch.setattr(
+        cli,
+        "load_recent_context",
+        lambda: create_recent_context(
+            kind="lab",
+            slug="tcp",
+            title="TCP Handshake Lab",
+            summary="You tested 192.168.1.1:443 and observed a filtered handshake state.",
+        ),
+    )
+    monkeypatch.setattr(cli, "get_ask_provider", lambda config: FakeProvider())
+    result = run(["ask", "what does that mean?"])
+    out = capsys.readouterr().out
+    assert result == 0
+    assert "Recent context used:" in out
+    assert "TCP Handshake Lab" in out

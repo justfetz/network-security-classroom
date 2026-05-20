@@ -8,6 +8,7 @@ from network_security_classroom.ask import (
     get_ask_provider,
     render_ask_response,
 )
+from network_security_classroom.memory import create_recent_context
 
 
 def test_local_ask_provider_answers_metadata_question():
@@ -62,6 +63,46 @@ def test_build_remote_prompt_includes_project_context():
     prompt = _build_remote_prompt("why does tls matter?")
     assert "Project context:" in prompt
     assert "TLS, Encryption, and Metadata" in prompt
+
+
+def test_build_remote_prompt_includes_recent_context():
+    recent_context = create_recent_context(
+        kind="lab",
+        slug="tcp",
+        title="TCP Handshake Lab",
+        summary="You tested 192.168.1.1:443 and observed an open handshake state.",
+    )
+    prompt = _build_remote_prompt("what does that mean?", recent_context=recent_context)
+    assert "Recent learner context:" in prompt
+    assert "TCP Handshake Lab" in prompt
+
+
+def test_local_ask_provider_uses_recent_context_for_follow_up():
+    provider = get_ask_provider(AskConfig(provider="local"))
+    recent_context = create_recent_context(
+        kind="lab",
+        slug="tcp",
+        title="TCP Handshake Lab",
+        summary="You tested 192.168.1.1:443 and observed a filtered handshake state.",
+    )
+    response = provider.answer("what does that mean?", recent_context=recent_context)
+    assert "Recent context:" in response.answer
+    assert "TCP Handshake Lab" in response.answer
+    assert response.recent_context_note
+
+
+def test_render_ask_response_includes_recent_context_note():
+    provider = get_ask_provider(AskConfig(provider="local"))
+    recent_context = create_recent_context(
+        kind="explore",
+        slug="metadata",
+        title="Metadata and Visibility",
+        summary="You explored how metadata can reveal intent around encrypted traffic.",
+    )
+    response = provider.answer("tell me more", recent_context=recent_context)
+    text = render_ask_response(response)
+    assert "Recent context used:" in text
+    assert "Metadata and Visibility" in text
 
 
 def test_openai_provider_uses_mocked_response(monkeypatch):

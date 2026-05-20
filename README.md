@@ -62,7 +62,7 @@ The next slice adds:
 - TCP handshake learning for one host and port
 - DNS metadata learning with safe demo output
 - exploration mode with a topic map and next-step suggestions
-- ask mode with local answers first and optional BYO-key LLM providers
+- ask mode with local answers first, recent-context memory, and optional BYO-key LLM providers
 - TLS certificate inspection as an intermediate lab
 - HTTP headers and security posture inspection
 
@@ -103,6 +103,7 @@ What each step does:
   - shows why DNS can reveal intent
 - `nsc ask ...`
   - lets the user ask a plain-English question
+  - remembers the last lesson, lab, or topic they explored so follow-up questions feel grounded
 
 ## Command Reference
 
@@ -147,7 +148,7 @@ python -m network_security_classroom.cli lab http --url https://example.com
 
 `demo` mode is the default. `live` mode is optional and intended for a home lab or hotspot box where packet capture tooling is installed and explicitly allowed.
 
-`ask` mode works with a local provider by default. Users can optionally configure their own OpenAI or Hugging Face key through `nsc ask --setup`.
+`ask` mode works with a local provider by default. It also remembers the learner's most recent lesson, lab, or exploration topic. Users can optionally configure their own OpenAI or Hugging Face key through `nsc ask --setup`.
 
 ## Ask Mode
 
@@ -158,6 +159,7 @@ By default:
 - `nsc ask "..."` uses a local knowledge-backed provider
 - no remote model is required
 - no API key is required
+- the tool remembers the last lesson, lab, or exploration topic you ran and can use that context in follow-up answers
 
 If a user wants remote model support, they can bring their own key:
 
