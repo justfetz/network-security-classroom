@@ -9,6 +9,7 @@ import json
 import socket
 import ssl
 from datetime import datetime, timezone
+from typing import Any, cast
 from urllib import request
 from urllib.error import URLError
 
@@ -86,7 +87,7 @@ class LiveArpBackend(ArpBackend):
     """Optional Scapy-backed ARP discovery for local lab use."""
 
     def scan(self, network: str) -> ArpScanResult:
-        scapy = _load_scapy_all()
+        scapy = _load_scapy_all("ARP")
         packet = scapy.Ether(dst="ff:ff:ff:ff:ff:ff") / scapy.ARP(pdst=network)
         answered, _ = scapy.srp(packet, timeout=3, verbose=False)
 
@@ -128,7 +129,7 @@ class LiveTcpBackend(TcpBackend):
 
     def probe(self, target: str, port: int, demo_state: str = "open") -> TcpHandshakeResult:
         del demo_state
-        scapy = _load_scapy_all()
+        scapy = _load_scapy_all("TCP")
         packet = scapy.IP(dst=target) / scapy.TCP(dport=port, flags="S")
         response = scapy.sr1(packet, timeout=2, verbose=False)
 
@@ -178,7 +179,7 @@ class LiveDnsBackend(DnsBackend):
 
     def observe(self, demo_domain: str = "example.com") -> DnsObservationResult:
         del demo_domain
-        scapy = _load_scapy_all()
+        scapy = _load_scapy_all("DNS")
         packets = []
 
         def packet_callback(packet):
@@ -260,7 +261,7 @@ class LiveTlsBackend(TlsBackend):
         context = ssl.create_default_context()
         with socket.create_connection((target, port), timeout=5) as sock:
             with context.wrap_socket(sock, server_hostname=target) as wrapped:
-                cert = wrapped.getpeercert()
+                cert = cast(dict[str, Any], wrapped.getpeercert() or {})
 
         subject = _flatten_name(cert.get("subject", ()))
         issuer = _flatten_name(cert.get("issuer", ()))
@@ -694,7 +695,9 @@ def _http_explanation(headers: dict[str, str]) -> str:
     return " ".join(parts) if parts else "No tracked security header guidance available."
 
 
-def _flatten_name(name_parts) -> str:
+def _flatten_name(name_parts: object) -> str:
+    if not isinstance(name_parts, tuple):
+        return "unknown"
     pairs = []
     for group in name_parts:
         for key, value in group:
@@ -702,7 +705,9 @@ def _flatten_name(name_parts) -> str:
     return ", ".join(pairs) if pairs else "unknown"
 
 
-def _normalize_cert_time(value: str) -> str:
+def _normalize_cert_time(value: object) -> str:
+    if not isinstance(value, str):
+        return "unknown"
     if not value:
         return "unknown"
     try:
@@ -751,11 +756,11 @@ def _interesting_http_header_lines(headers: dict[str, str]) -> list[str]:
     return lines
 
 
-def _load_scapy_all():
+def _load_scapy_all(lab_name: str):
     try:
         return importlib.import_module("scapy.all")
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "Live ARP backend requires the optional 'scapy' dependency. "
+            f"Live {lab_name} backend requires the optional 'scapy' dependency. "
             "Install with: pip install -e .[live]"
         ) from exc

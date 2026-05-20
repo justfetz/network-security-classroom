@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
+from typing import Any, cast
 from urllib import request
 
 from .config import AskConfig
@@ -22,7 +24,11 @@ class AskResponse:
 
 
 class AskProvider:
-    def answer(self, question: str, recent_context: RecentContext | None = None) -> AskResponse:  # pragma: no cover - interface only
+    def answer(
+        self,
+        question: str,
+        recent_context: RecentContext | None = None,
+    ) -> AskResponse:  # pragma: no cover - interface only
         raise NotImplementedError
 
 
@@ -89,7 +95,8 @@ class OpenAIAskProvider(AskProvider):
             payload,
             {"Authorization": f"Bearer {self.api_key}"},
         )
-        text = response["choices"][0]["message"]["content"]
+        data = cast(dict[str, Any], response)
+        text = data["choices"][0]["message"]["content"]
         return AskResponse(
             answer=text.strip(),
             source=f"openai:{self.model}",
@@ -156,32 +163,17 @@ SYSTEM_INSTRUCTIONS = (
 
 
 def _resolve_local_targets(prompt: str) -> tuple[str | None, str | None]:
-    if any(
-        word in prompt
-        for word in (
-            "attacker mindset",
-            "attacker-mindset",
-            "what attackers look for",
-            "what are attackers looking for",
-            "exposure",
-            "exploit chain",
-            "misconfiguration",
-        )
-    ):
-        return "attacker-mindset", "attacker-mindset"
-    if any(word in prompt for word in ("zero-day", "zero day", "n-day", "patch")):
-        return "zero-day", "zero-day"
-    if any(word in prompt for word in ("metadata", "privacy", "visible", "dns")):
-        return "tls-metadata", "metadata"
-    if any(word in prompt for word in ("tls", "https", "encryption", "certificate")):
-        return "tls-metadata", "tls"
-    if any(word in prompt for word in ("handshake", "filtered", "closed", "open port")):
-        return "handshake", "handshake"
-    if any(word in prompt for word in ("host", "device", "reachable")):
-        return "host", "hosts"
-    if any(word in prompt for word in ("detect", "logging", "response")):
-        return None, "detection"
-    return None, None
+    tokens = _tokens(prompt)
+    best_score = 0
+    best_target: tuple[str | None, str | None] = (None, None)
+
+    for rule in ROUTING_RULES:
+        score = rule.score(prompt, tokens)
+        if score > best_score:
+            best_score = score
+            best_target = (rule.lesson_slug, rule.topic_slug)
+
+    return best_target
 
 
 def _build_remote_prompt(question: str, recent_context: RecentContext | None = None) -> str:
@@ -214,16 +206,95 @@ def _should_reference_recent_context(
     topic_slug: str | None,
     recent_context: RecentContext,
 ) -> bool:
-    follow_up_markers = ("this", "that", "these", "those", "recent", "last", "just", "again")
-    if any(marker in prompt for marker in follow_up_markers):
+    if recent_context.slug in {lesson_slug, topic_slug}:
         return True
     if not lesson_slug and not topic_slug:
         return True
-    return recent_context.slug in {lesson_slug, topic_slug}
+    token_set = _tokens(prompt)
+    follow_up_markers = {"that", "these", "those", "recent", "last", "again"}
+    if token_set.intersection(follow_up_markers):
+        return True
+    if token_set == {"this"} or token_set == {"what", "is", "this"}:
+        return True
+    return False
 
 
 def _render_recent_context_note(recent_context: RecentContext) -> str:
     return f"You recently explored {recent_context.title}. {recent_context.summary}"
+
+
+@dataclass(frozen=True)
+class RouteRule:
+    lesson_slug: str | None
+    topic_slug: str | None
+    phrases: tuple[str, ...]
+    terms: tuple[str, ...]
+
+    def score(self, prompt: str, tokens: set[str]) -> int:
+        score = 0
+        for phrase in self.phrases:
+            if phrase in prompt:
+                score += 5
+        for term in self.terms:
+            if term in tokens:
+                score += 2
+        return score
+
+
+ROUTING_RULES = (
+    RouteRule(
+        lesson_slug="attacker-mindset",
+        topic_slug="attacker-mindset",
+        phrases=(
+            "attacker mindset",
+            "attacker-mindset",
+            "what attackers look for",
+            "what are attackers looking for",
+            "exploit chain",
+        ),
+        terms=("attacker", "attackers", "exposure", "exploit", "misconfiguration", "misconfigurations"),
+    ),
+    RouteRule(
+        lesson_slug="zero-day",
+        topic_slug="zero-day",
+        phrases=("zero-day", "zero day", "n-day"),
+        terms=("patch", "patching", "vulnerability", "vulnerabilities"),
+    ),
+    RouteRule(
+        lesson_slug="tls-metadata",
+        topic_slug="tls",
+        phrases=("certificate trust", "https", "tls"),
+        terms=("certificate", "certificates", "encryption", "encrypted", "tls", "https"),
+    ),
+    RouteRule(
+        lesson_slug="tls-metadata",
+        topic_slug="metadata",
+        phrases=("dns metadata", "traffic metadata"),
+        terms=("metadata", "privacy", "visible", "dns"),
+    ),
+    RouteRule(
+        lesson_slug="handshake",
+        topic_slug="handshake",
+        phrases=("open port", "tcp handshake"),
+        terms=("handshake", "filtered", "closed", "syn", "reset"),
+    ),
+    RouteRule(
+        lesson_slug="host",
+        topic_slug="hosts",
+        phrases=("what is a host",),
+        terms=("host", "hosts", "device", "devices", "reachable"),
+    ),
+    RouteRule(
+        lesson_slug=None,
+        topic_slug="detection",
+        phrases=("incident response",),
+        terms=("detect", "detection", "logging", "logs", "response"),
+    ),
+)
+
+
+def _tokens(prompt: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)?", prompt.casefold()))
 
 
 def _post_json(url: str, payload: dict, extra_headers: dict[str, str]) -> dict | list:

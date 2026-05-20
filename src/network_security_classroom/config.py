@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 import tomllib
+from typing import Any
 
 
 DEFAULT_CONFIG_DIRNAME = ".nsc"
@@ -33,10 +34,10 @@ def load_ask_config(home: Path | None = None, env: dict[str, str] | None = None)
     active_env = env or os.environ
     file_data = _load_config_file(get_config_path(home))
 
-    provider = active_env.get("NSC_ASK_PROVIDER") or file_data.get("ask_provider") or "local"
-    model = active_env.get("NSC_ASK_MODEL") or file_data.get("model") or ""
-    openai_api_key = active_env.get("OPENAI_API_KEY") or _nested(file_data, "openai", "api_key") or ""
-    hf_api_key = active_env.get("HF_TOKEN") or _nested(file_data, "huggingface", "api_key") or ""
+    provider = str(active_env.get("NSC_ASK_PROVIDER") or file_data.get("ask_provider") or "local")
+    model = str(active_env.get("NSC_ASK_MODEL") or file_data.get("model") or "")
+    openai_api_key = str(active_env.get("OPENAI_API_KEY") or _nested(file_data, "openai", "api_key") or "")
+    hf_api_key = str(active_env.get("HF_TOKEN") or _nested(file_data, "huggingface", "api_key") or "")
 
     return AskConfig(
         provider=provider.strip().casefold(),
@@ -69,13 +70,13 @@ def save_ask_config(
     return path
 
 
-def _load_config_file(path: Path) -> dict:
+def _load_config_file(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     return tomllib.loads(path.read_text(encoding="utf-8"))
 
 
-def _nested(data: dict, *keys: str):
+def _nested(data: dict[str, Any], *keys: str) -> Any:
     current = data
     for key in keys:
         if not isinstance(current, dict):

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 import ssl
 import sys
+from typing import Any
 
 from .ask import get_ask_provider, render_ask_response
 from .config import AskConfig, get_config_path, load_ask_config, save_ask_config
@@ -166,272 +168,306 @@ def run(argv: list[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
-
-    if args.command == "lesson" and args.lesson_command == "list":
-        for lesson in list_lessons():
-            print(f"{lesson.slug:<12} {lesson.title}")
-        return 0
-
-    if args.command == "lesson" and args.lesson_command == "show":
-        lesson = get_lesson(args.slug)
-        if not lesson:
-            print(f"Unknown lesson: {args.slug}", file=sys.stderr)
-            return 1
-        print(lesson.title)
-        print()
-        print(lesson.summary)
-        print()
-        print(lesson.body)
-        _remember_recent_context(
-            create_recent_context(
-                kind="lesson",
-                slug=lesson.slug,
-                title=lesson.title,
-                summary=lesson.summary,
-                suggested_commands=(f"nsc notes export --lesson {lesson.slug}", 'nsc ask "why does this matter?"'),
-            )
-        )
-        return 0
-
-    if args.command == "notes" and args.notes_command == "export":
-        lesson = get_lesson(args.lesson)
-        if not lesson:
-            print(f"Unknown lesson: {args.lesson}", file=sys.stderr)
-            return 1
-        path = export_lesson_markdown(lesson, args.output)
-        print(f"Exported notes to {Path(path).resolve()}")
-        return 0
-
-    if args.command == "lab" and args.lab_command == "arp":
-        try:
-            result = run_arp_discovery(args.network_range, backend_name=args.backend)
-        except (ValueError, RuntimeError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        print(f"ARP backend: {args.backend}")
-        print()
-        print(render_arp_summary(result))
-        _remember_recent_context(
-            create_recent_context(
-                kind="lab",
-                slug="arp",
-                title="ARP Discovery Lab",
-                summary=f"You scanned {result.network} and found {len(result.devices)} responding host(s).",
-                suggested_commands=("nsc explore topic hosts", 'nsc ask "what does arp actually tell me?"'),
-            )
-        )
-        if args.output:
-            path = export_arp_markdown(result, args.output)
-            print()
-            print(f"Exported notes to {Path(path).resolve()}")
-        return 0
-
-    if args.command == "lab" and args.lab_command == "tcp":
-        try:
-            result = run_tcp_handshake(
-                args.target,
-                args.port,
-                backend_name=args.backend,
-                demo_state=args.demo_state,
-            )
-        except (ValueError, RuntimeError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        print(f"TCP backend: {args.backend}")
-        print()
-        print(render_tcp_summary(result))
-        _remember_recent_context(
-            create_recent_context(
-                kind="lab",
-                slug="tcp",
-                title="TCP Handshake Lab",
-                summary=f"You tested {result.target}:{result.port} and observed a {result.state} handshake state.",
-                suggested_commands=(
-                    f"nsc lab tcp --target {result.target} --port {result.port} --demo-state filtered",
-                    'nsc ask "what does this state mean?"',
-                ),
-            )
-        )
-        if args.output:
-            path = export_tcp_markdown(result, args.output)
-            print()
-            print(f"Exported notes to {Path(path).resolve()}")
-        return 0
-
-    if args.command == "lab" and args.lab_command == "dns":
-        try:
-            result = run_dns_observation(
-                backend_name=args.backend,
-                demo_domain=args.demo_domain,
-            )
-        except (ValueError, RuntimeError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        print(f"DNS backend: {args.backend}")
-        print()
-        print(render_dns_summary(result))
-        _remember_recent_context(
-            create_recent_context(
-                kind="lab",
-                slug="dns",
-                title="DNS Metadata Lab",
-                summary=f"You observed a DNS lookup for {result.queried_domain} over {result.transport}.",
-                suggested_commands=("nsc explore topic metadata", 'nsc ask "why does dns still matter if traffic is encrypted?"'),
-            )
-        )
-        if args.output:
-            path = export_dns_markdown(result, args.output)
-            print()
-            print(f"Exported notes to {Path(path).resolve()}")
-        return 0
-
-    if args.command == "lab" and args.lab_command == "tls":
-        try:
-            result = run_tls_inspection(
-                args.target,
-                args.port,
-                backend_name=args.backend,
-                demo_trust_state=args.demo_trust_state,
-            )
-        except (ValueError, RuntimeError, OSError, ssl.SSLError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        print(f"TLS backend: {args.backend}")
-        print()
-        print(render_tls_summary(result))
-        _remember_recent_context(
-            create_recent_context(
-                kind="lab",
-                slug="tls",
-                title="TLS Certificate Lab",
-                summary=(
-                    f"You inspected {result.target}:{result.port} and saw a {result.trust_state} trust interpretation."
-                ),
-                suggested_commands=(
-                    f"nsc lab tls --target {result.target} --port {result.port} --demo-trust-state hostname-mismatch",
-                    'nsc ask "why would a client distrust this certificate?"',
-                ),
-            )
-        )
-        if args.output:
-            path = export_tls_markdown(result, args.output)
-            print()
-            print(f"Exported notes to {Path(path).resolve()}")
-        return 0
-
-    if args.command == "lab" and args.lab_command == "http":
-        try:
-            result = run_http_inspection(
-                args.url,
-                backend_name=args.backend,
-            )
-        except (ValueError, RuntimeError, OSError) as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        print(f"HTTP backend: {args.backend}")
-        print()
-        print(render_http_summary(result))
-        _remember_recent_context(
-            create_recent_context(
-                kind="lab",
-                slug="http",
-                title="HTTP Security Headers Lab",
-                summary=f"You inspected {result.url} and reviewed security-relevant response headers.",
-                suggested_commands=("nsc explore topic detection", 'nsc ask "which missing headers matter most?"'),
-            )
-        )
-        if args.output:
-            path = export_http_markdown(result, args.output)
-            print()
-            print(f"Exported notes to {Path(path).resolve()}")
-        return 0
-
-    if args.command == "explore" and args.explore_command == "topics":
-        for topic in list_topics():
-            print(f"{topic.slug:<12} {topic.title}")
-        _remember_recent_context(
-            create_recent_context(
-                kind="explore",
-                slug="topics",
-                title="Exploration Topic Map",
-                summary="You browsed the high-level topic map for the classroom.",
-                suggested_commands=("nsc explore topic metadata", 'nsc ask "where should i start?"'),
-            )
-        )
-        return 0
-
-    if args.command == "explore" and args.explore_command == "topic":
-        topic = get_topic(args.slug)
-        if not topic:
-            print(f"Unknown exploration topic: {args.slug}", file=sys.stderr)
-            return 1
-        print(render_topic_summary(topic))
-        _remember_recent_context(
-            create_recent_context(
-                kind="explore",
-                slug=topic.slug,
-                title=topic.title,
-                summary=topic.summary,
-                suggested_commands=topic.suggested_commands,
-            )
-        )
-        return 0
-
-    if args.command == "explore" and args.explore_command == "next":
-        try:
-            topics = suggest_next(args.slug)
-        except ValueError as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        print(f"If {args.slug} interests you, explore these next:")
-        print()
-        for topic in topics:
-            print(f"- {topic}")
-        _remember_recent_context(
-            create_recent_context(
-                kind="explore",
-                slug=args.slug,
-                title=f"Next topics after {args.slug}",
-                summary=f"You asked for follow-up topics after {args.slug}: {', '.join(topics)}.",
-                suggested_commands=tuple(f"nsc explore topic {topic}" for topic in topics[:2]),
-            )
-        )
-        return 0
-
-    if args.command == "ask":
-        if args.setup:
-            path = run_ask_setup(provider_override=args.provider)
-            print(f"Saved ask configuration to {path}")
-            return 0
-        if args.status:
-            config = load_ask_config()
-            recent_context = load_recent_context()
-            print(f"Provider: {config.provider}")
-            print(f"Model: {config.model or '(default)'}")
-            print(f"Config path: {get_config_path()}")
-            print(f"Recent context path: {get_recent_context_path()}")
-            print(f"Recent context configured: {'yes' if recent_context else 'no'}")
-            if recent_context:
-                print(f"Recent context title: {recent_context.title}")
-            print(f"OpenAI key configured: {'yes' if bool(config.openai_api_key) else 'no'}")
-            print(f"Hugging Face key configured: {'yes' if bool(config.hf_api_key) else 'no'}")
-            return 0
-        if args.question:
-            try:
-                config = load_ask_config()
-                recent_context = load_recent_context()
-                provider = get_ask_provider(config)
-                response = provider.answer(args.question, recent_context=recent_context)
-            except (ValueError, RuntimeError) as exc:
-                print(str(exc), file=sys.stderr)
-                return 1
-            print(render_ask_response(response))
-            return 0
-        print("Usage: nsc ask \"your question here\"  |  nsc ask --setup  |  nsc ask --status")
-        return 1
+    handler = _dispatch_table().get(_command_key(args))
+    if handler:
+        return handler(args)
 
     parser.print_help()
     return 1
+
+
+CommandHandler = Callable[[argparse.Namespace], int]
+
+
+def _command_key(args: argparse.Namespace) -> tuple[str | None, str | None]:
+    subcommand = None
+    for name in ("lesson_command", "notes_command", "lab_command", "explore_command"):
+        value = getattr(args, name, None)
+        if value:
+            subcommand = value
+            break
+    return args.command, subcommand
+
+
+def _dispatch_table() -> dict[tuple[str | None, str | None], CommandHandler]:
+    return {
+        ("lesson", "list"): _handle_lesson_list,
+        ("lesson", "show"): _handle_lesson_show,
+        ("notes", "export"): _handle_notes_export,
+        ("lab", "arp"): _handle_lab_arp,
+        ("lab", "tcp"): _handle_lab_tcp,
+        ("lab", "dns"): _handle_lab_dns,
+        ("lab", "tls"): _handle_lab_tls,
+        ("lab", "http"): _handle_lab_http,
+        ("explore", "topics"): _handle_explore_topics,
+        ("explore", "topic"): _handle_explore_topic,
+        ("explore", "next"): _handle_explore_next,
+        ("ask", None): _handle_ask,
+    }
+
+
+def _handle_lesson_list(args: argparse.Namespace) -> int:
+    del args
+    for lesson in list_lessons():
+        print(f"{lesson.slug:<18} {lesson.title}")
+    return 0
+
+
+def _handle_lesson_show(args: argparse.Namespace) -> int:
+    lesson = get_lesson(args.slug)
+    if not lesson:
+        print(f"Unknown lesson: {args.slug}", file=sys.stderr)
+        return 1
+    print(lesson.title)
+    print()
+    print(lesson.summary)
+    print()
+    print(lesson.body)
+    _remember_recent_context(
+        create_recent_context(
+            kind="lesson",
+            slug=lesson.slug,
+            title=lesson.title,
+            summary=lesson.summary,
+            suggested_commands=(f"nsc notes export --lesson {lesson.slug}", 'nsc ask "why does this matter?"'),
+        )
+    )
+    return 0
+
+
+def _handle_notes_export(args: argparse.Namespace) -> int:
+    lesson = get_lesson(args.lesson)
+    if not lesson:
+        print(f"Unknown lesson: {args.lesson}", file=sys.stderr)
+        return 1
+    path = export_lesson_markdown(lesson, args.output)
+    print(f"Exported notes to {Path(path).resolve()}")
+    return 0
+
+
+def _handle_lab_arp(args: argparse.Namespace) -> int:
+    try:
+        result = run_arp_discovery(args.network_range, backend_name=args.backend)
+    except (ValueError, RuntimeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"ARP backend: {args.backend}")
+    print()
+    print(render_arp_summary(result))
+    _remember_recent_context(
+        create_recent_context(
+            kind="lab",
+            slug="arp",
+            title="ARP Discovery Lab",
+            summary=f"You scanned {result.network} and found {len(result.devices)} responding host(s).",
+            suggested_commands=("nsc explore topic hosts", 'nsc ask "what does arp actually tell me?"'),
+        )
+    )
+    _export_if_requested(args.output, export_arp_markdown, result)
+    return 0
+
+
+def _handle_lab_tcp(args: argparse.Namespace) -> int:
+    try:
+        result = run_tcp_handshake(
+            args.target,
+            args.port,
+            backend_name=args.backend,
+            demo_state=args.demo_state,
+        )
+    except (ValueError, RuntimeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"TCP backend: {args.backend}")
+    print()
+    print(render_tcp_summary(result))
+    _remember_recent_context(
+        create_recent_context(
+            kind="lab",
+            slug="tcp",
+            title="TCP Handshake Lab",
+            summary=f"You tested {result.target}:{result.port} and observed a {result.state} handshake state.",
+            suggested_commands=(
+                f"nsc lab tcp --target {result.target} --port {result.port} --demo-state filtered",
+                'nsc ask "what does this state mean?"',
+            ),
+        )
+    )
+    _export_if_requested(args.output, export_tcp_markdown, result)
+    return 0
+
+
+def _handle_lab_dns(args: argparse.Namespace) -> int:
+    try:
+        result = run_dns_observation(
+            backend_name=args.backend,
+            demo_domain=args.demo_domain,
+        )
+    except (ValueError, RuntimeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"DNS backend: {args.backend}")
+    print()
+    print(render_dns_summary(result))
+    _remember_recent_context(
+        create_recent_context(
+            kind="lab",
+            slug="dns",
+            title="DNS Metadata Lab",
+            summary=f"You observed a DNS lookup for {result.queried_domain} over {result.transport}.",
+            suggested_commands=("nsc explore topic metadata", 'nsc ask "why does dns still matter if traffic is encrypted?"'),
+        )
+    )
+    _export_if_requested(args.output, export_dns_markdown, result)
+    return 0
+
+
+def _handle_lab_tls(args: argparse.Namespace) -> int:
+    try:
+        result = run_tls_inspection(
+            args.target,
+            args.port,
+            backend_name=args.backend,
+            demo_trust_state=args.demo_trust_state,
+        )
+    except (ValueError, RuntimeError, OSError, ssl.SSLError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"TLS backend: {args.backend}")
+    print()
+    print(render_tls_summary(result))
+    _remember_recent_context(
+        create_recent_context(
+            kind="lab",
+            slug="tls",
+            title="TLS Certificate Lab",
+            summary=f"You inspected {result.target}:{result.port} and saw a {result.trust_state} trust interpretation.",
+            suggested_commands=(
+                f"nsc lab tls --target {result.target} --port {result.port} --demo-trust-state hostname-mismatch",
+                'nsc ask "why would a client distrust this certificate?"',
+            ),
+        )
+    )
+    _export_if_requested(args.output, export_tls_markdown, result)
+    return 0
+
+
+def _handle_lab_http(args: argparse.Namespace) -> int:
+    try:
+        result = run_http_inspection(args.url, backend_name=args.backend)
+    except (ValueError, RuntimeError, OSError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"HTTP backend: {args.backend}")
+    print()
+    print(render_http_summary(result))
+    _remember_recent_context(
+        create_recent_context(
+            kind="lab",
+            slug="http",
+            title="HTTP Security Headers Lab",
+            summary=f"You inspected {result.url} and reviewed security-relevant response headers.",
+            suggested_commands=("nsc explore topic detection", 'nsc ask "which missing headers matter most?"'),
+        )
+    )
+    _export_if_requested(args.output, export_http_markdown, result)
+    return 0
+
+
+def _handle_explore_topics(args: argparse.Namespace) -> int:
+    del args
+    for topic in list_topics():
+        print(f"{topic.slug:<18} {topic.title}")
+    _remember_recent_context(
+        create_recent_context(
+            kind="explore",
+            slug="topics",
+            title="Exploration Topic Map",
+            summary="You browsed the high-level topic map for the classroom.",
+            suggested_commands=("nsc explore topic metadata", 'nsc ask "where should i start?"'),
+        )
+    )
+    return 0
+
+
+def _handle_explore_topic(args: argparse.Namespace) -> int:
+    topic = get_topic(args.slug)
+    if not topic:
+        print(f"Unknown exploration topic: {args.slug}", file=sys.stderr)
+        return 1
+    print(render_topic_summary(topic))
+    _remember_recent_context(
+        create_recent_context(
+            kind="explore",
+            slug=topic.slug,
+            title=topic.title,
+            summary=topic.summary,
+            suggested_commands=topic.suggested_commands,
+        )
+    )
+    return 0
+
+
+def _handle_explore_next(args: argparse.Namespace) -> int:
+    try:
+        topics = suggest_next(args.slug)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"If {args.slug} interests you, explore these next:")
+    print()
+    for topic in topics:
+        print(f"- {topic}")
+    _remember_recent_context(
+        create_recent_context(
+            kind="explore",
+            slug=args.slug,
+            title=f"Next topics after {args.slug}",
+            summary=f"You asked for follow-up topics after {args.slug}: {', '.join(topics)}.",
+            suggested_commands=tuple(f"nsc explore topic {topic}" for topic in topics[:2]),
+        )
+    )
+    return 0
+
+
+def _handle_ask(args: argparse.Namespace) -> int:
+    if args.setup:
+        path = run_ask_setup(provider_override=args.provider)
+        print(f"Saved ask configuration to {path}")
+        return 0
+    if args.status:
+        config = load_ask_config()
+        recent_context = load_recent_context()
+        print(f"Provider: {config.provider}")
+        print(f"Model: {config.model or '(default)'}")
+        print(f"Config path: {get_config_path()}")
+        print(f"Recent context path: {get_recent_context_path()}")
+        print(f"Recent context configured: {'yes' if recent_context else 'no'}")
+        if recent_context:
+            print(f"Recent context title: {recent_context.title}")
+        print(f"OpenAI key configured: {'yes' if bool(config.openai_api_key) else 'no'}")
+        print(f"Hugging Face key configured: {'yes' if bool(config.hf_api_key) else 'no'}")
+        return 0
+    if args.question:
+        try:
+            config = load_ask_config()
+            recent_context = load_recent_context()
+            provider = get_ask_provider(config)
+            response = provider.answer(args.question, recent_context=recent_context)
+        except (ValueError, RuntimeError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(render_ask_response(response))
+        return 0
+    print("Usage: nsc ask \"your question here\"  |  nsc ask --setup  |  nsc ask --status")
+    return 1
+
+
+def _export_if_requested(output: str | None, exporter: Callable[[Any, str], Path], result: Any) -> None:
+    if output:
+        path = exporter(result, output)
+        print()
+        print(f"Exported notes to {Path(path).resolve()}")
 
 
 def main() -> None:
@@ -448,9 +484,11 @@ def run_ask_setup(provider_override: str | None = None):
     hf_api_key = ""
 
     if provider == "openai":
+        print("API keys are stored in plaintext in your user-local .nsc config file.")
         model = input("OpenAI model [gpt-4.1-mini]: ").strip() or "gpt-4.1-mini"
         openai_api_key = input("OpenAI API key: ").strip()
     elif provider == "huggingface":
+        print("API tokens are stored in plaintext in your user-local .nsc config file.")
         model = input("Hugging Face model [meta-llama/Meta-Llama-3.1-8B-Instruct]: ").strip() or (
             "meta-llama/Meta-Llama-3.1-8B-Instruct"
         )

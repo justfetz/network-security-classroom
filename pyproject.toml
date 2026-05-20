@@ -14,6 +14,7 @@ dependencies = []
 dev = [
   "pytest>=8.2.0",
   "pytest-cov>=5.0.0",
+  "pyright>=1.1.380",
 ]
 live = [
   "scapy>=2.5.0",
@@ -28,6 +29,14 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+network_security_classroom = ["content/lessons/*.md", "content/topics/*.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-p no:cacheprovider --cov=src/network_security_classroom --cov-report=term-missing"
+
+[tool.pyright]
+include = ["src/network_security_classroom"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .content import load_markdown_documents
+
 
 @dataclass(frozen=True)
 class Lesson:
@@ -13,82 +15,25 @@ class Lesson:
     body: str
 
 
-LESSONS = {
-    "attacker-mindset": Lesson(
-        slug="attacker-mindset",
-        title="Attacker Mindset for Defenders",
-        summary="Learn what attackers tend to notice first, and why defenders study that view without becoming attackers.",
-        body=(
-            "Defenders study attacker mindset because it helps them see their systems the way an outsider, intruder, or "
-            "opportunist might see them. That does not mean becoming an attacker. It means understanding what usually stands out "
-            "first: exposed services, weak trust boundaries, unpatched software, missing visibility, excessive privileges, stale "
-            "certificates, risky defaults, and quiet misconfigurations.\n\n"
-            "In practice, attackers are often looking for leverage more than brilliance. They want reachable systems, useful "
-            "metadata, identity mistakes, weak segmentation, forgotten admin surfaces, vulnerable dependencies, or places where "
-            "one small foothold can become a larger chain.\n\n"
-            "The defensive lesson is not 'how do I break in?' The lesson is 'what would make my environment attractive, quiet, or "
-            "easy to move through?' Good defense comes from shrinking those opportunities with patching, least privilege, strong "
-            "defaults, trustworthy certificates, safer headers, logging, isolation, and fast response."
-        ),
-    ),
-    "host": Lesson(
-        slug="host",
-        title="What Is a Host?",
-        summary="Understand what a host is and why it matters in networking and security.",
-        body=(
-            "A host is any device on a network that has an address and can send or receive traffic. "
-            "That can be a laptop, phone, server, printer, switch management interface, or cloud VM.\n\n"
-            "In security, hosts matter because they are the concrete systems that expose services, store "
-            "data, and create logs. When someone says an attacker discovered a host, they usually mean "
-            "the attacker found a real reachable system worth studying further."
-        ),
-    ),
-    "handshake": Lesson(
-        slug="handshake",
-        title="What Is a TCP Handshake?",
-        summary="Learn how two systems agree to talk before application data moves.",
-        body=(
-            "A TCP handshake is the opening agreement between two systems before a reliable connection starts. "
-            "The common shorthand is SYN, SYN-ACK, ACK.\n\n"
-            "That sequence matters because it tells you a lot. If you get a SYN-ACK back, something is listening. "
-            "If you get a reset, the path may be open but nothing is listening on that port. If you get silence, "
-            "a firewall or filter may be dropping the traffic.\n\n"
-            "Security engineers use handshake behavior to reason about exposure, filtering, and service state."
-        ),
-    ),
-    "zero-day": Lesson(
-        slug="zero-day",
-        title="What Is a Zero-Day?",
-        summary="Break down what zero-day means without treating it like magic.",
-        body=(
-            "A zero-day is a vulnerability that is not yet publicly known or not yet patched when attackers start "
-            "using it. The term does not mean unstoppable. It means defenders have little or no patch lead time.\n\n"
-            "What matters in practice is not just the bug, but the whole situation around it: who can reach the system, "
-            "what privileges the vulnerable component has, what monitoring exists, and how quickly the organization can "
-            "contain blast radius.\n\n"
-            "A mature security mindset treats zero-days as one part of a chain. Good isolation, least privilege, logging, "
-            "and fast response still matter even when a patch does not exist yet."
-        ),
-    ),
-    "tls-metadata": Lesson(
-        slug="tls-metadata",
-        title="TLS, Encryption, and Metadata",
-        summary="Understand what TLS protects and what it still leaves visible to observers.",
-        body=(
-            "TLS is designed to protect the content of communication in transit. It helps keep passwords, page contents, "
-            "tokens, and application data private from casual interception.\n\n"
-            "But TLS does not hide everything. Observers can often still see who is talking, when they talk, how often they "
-            "talk, and other surrounding details such as DNS lookups, destination IPs, timing, and traffic volume.\n\n"
-            "That difference between content and metadata is one of the most important ideas in modern security. Encryption "
-            "is powerful, but it is not the same thing as invisibility."
-        ),
-    ),
-}
-
-
 def list_lessons() -> list[Lesson]:
     return [LESSONS[key] for key in sorted(LESSONS)]
 
 
 def get_lesson(slug: str) -> Lesson | None:
     return LESSONS.get(slug)
+
+
+def _load_lessons() -> dict[str, Lesson]:
+    lessons = {}
+    for document in load_markdown_documents("lessons"):
+        lesson = Lesson(
+            slug=document.metadata["slug"],
+            title=document.metadata["title"],
+            summary=document.metadata["summary"],
+            body=document.body,
+        )
+        lessons[lesson.slug] = lesson
+    return lessons
+
+
+LESSONS = _load_lessons()

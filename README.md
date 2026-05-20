@@ -179,6 +179,8 @@ nsc ask --setup
 nsc ask --status
 ```
 
+Remote provider keys are stored in plaintext in the user's local `.nsc` config file. Do not commit that file to a repository.
+
 Supported provider pattern:
 
 - `local`
@@ -202,10 +204,14 @@ pytest
 
 - `specs/`
   - spec-driven implementation notes
+- `src/network_security_classroom/content/`
+  - contributor-editable lesson and topic Markdown
 - `src/network_security_classroom/`
   - CLI, lesson registry, labs, and exploration mode
 - `tests/`
   - unit tests for command behavior and note generation
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the lesson/topic file format and local quality gates.
 
 ## Current Scope
 

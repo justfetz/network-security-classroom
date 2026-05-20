@@ -34,6 +34,26 @@ def test_local_ask_provider_answers_attacker_mindset_question():
     assert 'nsc ask "what are attackers usually looking for first?"' in response.suggested_commands
 
 
+def test_local_ask_provider_prefers_tls_over_host_when_both_are_present():
+    provider = get_ask_provider(AskConfig(provider="local"))
+    response = provider.answer("how do hosts handle tls?")
+    assert "TLS" in response.answer
+    assert "nsc lesson show tls-metadata" in response.suggested_commands
+
+
+def test_recent_context_does_not_override_clear_certificate_question():
+    provider = get_ask_provider(AskConfig(provider="local"))
+    recent_context = create_recent_context(
+        kind="lab",
+        slug="tcp",
+        title="TCP Handshake Lab",
+        summary="You tested a filtered TCP state.",
+    )
+    response = provider.answer("I want to understand this certificate", recent_context=recent_context)
+    assert "Recent context:" not in response.answer
+    assert "TLS" in response.answer
+
+
 def test_remote_provider_requires_key():
     try:
         get_ask_provider(AskConfig(provider="openai"))
