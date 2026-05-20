@@ -1,5 +1,7 @@
 # Network Security Classroom
 
+[![CI](https://github.com/justfetz/network-security-classroom/actions/workflows/ci.yml/badge.svg)](https://github.com/justfetz/network-security-classroom/actions/workflows/ci.yml)
+
 Network Security Classroom is a defensive CLI that teaches networking and modern security concepts through plain-English lessons and generated study notes.
 
 ## Start Here
